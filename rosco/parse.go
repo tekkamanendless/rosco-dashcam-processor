@@ -116,18 +116,21 @@ func ParseReader(reader io.Reader) (*FileInfo, error) {
 
 			fmt.Printf("Metadata length: %d\n", metadataLength)
 
-			//metadataLength -= 4
+			metadataLength -= 4
 
 			buffer = make([]byte, metadataLength)
 			_, err = io.ReadFull(reader, buffer)
 			if err != nil {
 				return nil, fmt.Errorf("Could not read the metadata buffer: %v", err)
 			}
-			fmt.Printf("len(buffer): %d\n", len(buffer))
 
 			chunk.Video.Metadata, err = parseMetadata(bytes.NewReader(buffer), false)
 			if err != nil {
 				return nil, fmt.Errorf("Could not parse the metadata: %v", err)
+			}
+
+			for mediaLength%8 != 0 {
+				mediaLength++
 			}
 
 			buffer = make([]byte, mediaLength)
@@ -205,13 +208,13 @@ func parseFileHeader(reader io.Reader) (*FileInfo, error) {
 		if err != nil {
 			return nil, fmt.Errorf("Could not read the unknown data: %v", err)
 		}
+		fileInfo.Unknown1 = buffer
 
 		buffer = make([]byte, 128)
 		_, err = io.ReadFull(reader, buffer)
 		if err != nil {
 			return nil, fmt.Errorf("Could not read the filename: %v", err)
 		}
-		fileInfo.Unknown1 = buffer
 
 		fileInfo.Filename = strings.Trim(string(buffer), "\x00")
 
@@ -240,7 +243,7 @@ func parseFileHeader(reader io.Reader) (*FileInfo, error) {
 	}
 }
 
-func parseMetadata(reader io.Reader, inFileHeader bool) (*Metadata, error) {
+func parseMetadata(reader *bytes.Reader, inFileHeader bool) (*Metadata, error) {
 	metadata := &Metadata{}
 	for i := 0; ; i++ {
 		var entryType int8
