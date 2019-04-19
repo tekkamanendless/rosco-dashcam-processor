@@ -87,6 +87,7 @@ func ParseReader(reader io.Reader) (*FileInfo, error) {
 
 			logger.Debugf("(Small) metadata length: %d", metadataLengthSmall)
 
+			chunk.Video.Unknown1 = make([]byte, 2)
 			err = binary.Read(reader, binary.LittleEndian, &chunk.Video.Unknown1)
 			if err != nil {
 				return nil, fmt.Errorf("Could not read unknown1 for chunk %d: %v", i, err)
@@ -101,6 +102,7 @@ func ParseReader(reader io.Reader) (*FileInfo, error) {
 
 			logger.Debugf("Timestamp: %d", chunk.Video.Timestamp)
 
+			chunk.Video.Unknown2 = make([]byte, 4)
 			err = binary.Read(reader, binary.LittleEndian, &chunk.Video.Unknown2)
 			if err != nil {
 				return nil, fmt.Errorf("Could not read unknown2 for chunk %d: %v", i, err)
@@ -159,6 +161,7 @@ func ParseReader(reader io.Reader) (*FileInfo, error) {
 				return nil, fmt.Errorf("Could not read the timestamp for chunk %d: %v", i, err)
 			}
 
+			chunk.Audio.Unknown1 = make([]byte, 4)
 			err = binary.Read(reader, binary.LittleEndian, &chunk.Audio.Unknown1)
 			if err != nil {
 				return nil, fmt.Errorf("Could not read unknown1 for chunk %d: %v", i, err)
