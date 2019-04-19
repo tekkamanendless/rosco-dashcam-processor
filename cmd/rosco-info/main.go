@@ -147,8 +147,8 @@ func main() {
 			if err != nil {
 				panic(fmt.Sprintf("Couldn't create output file: %v", err))
 			}
-			wavAudioFormat := 1
-			wavEncoder := wav.NewEncoder(out, intBuffer.Format.SampleRate, 8, intBuffer.Format.NumChannels, wavAudioFormat)
+			wavAudioFormat := 0x0007 // mu-law
+			wavEncoder := wav.NewEncoder(out, intBuffer.Format.SampleRate, intBuffer.SourceBitDepth, intBuffer.Format.NumChannels, wavAudioFormat)
 			wavEncoder.Write(intBuffer)
 			wavEncoder.Close()
 			out.Close()
