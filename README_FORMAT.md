@@ -47,7 +47,7 @@ Each NVR file consists of two parts:
    1. `2`; String (4 bytes for the length, followed by "length" bytes)
    1. `3`; ??? 32-bit integer?
    1. `4`; Metadata (4 bytes for the length of the metadata, including those 4 bytes)
-   1. `8`; Either a 16-bit integer or an 8-bit integer?  Seems different in file header and chunk metadata...
+   1. `8`; 8-bit integer
    1. `9`; 64-bit integer
    1. `10`; ??? 32-bit integer?
 1. (null-terminated) Name

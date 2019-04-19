@@ -329,21 +329,12 @@ func parseMetadata(reader *bytes.Reader, inFileHeader bool) (*Metadata, error) {
 			}
 			entry.Value = subMetadata
 		case MetadataType8:
-			if inFileHeader {
-				var value int16
-				err = binary.Read(reader, binary.LittleEndian, &value)
-				if err != nil {
-					return nil, fmt.Errorf("Could not read the value on entry %d: %v", i, err)
-				}
-				entry.Value = value
-			} else {
-				var value int8
-				err = binary.Read(reader, binary.LittleEndian, &value)
-				if err != nil {
-					return nil, fmt.Errorf("Could not read the value on entry %d: %v", i, err)
-				}
-				entry.Value = value
+			var value int8
+			err = binary.Read(reader, binary.LittleEndian, &value)
+			if err != nil {
+				return nil, fmt.Errorf("Could not read the value on entry %d: %v", i, err)
 			}
+			entry.Value = value
 		case MetadataTypeInt64:
 			var value int64
 			err = binary.Read(reader, binary.LittleEndian, &value)
