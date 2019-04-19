@@ -56,7 +56,7 @@ func ParseReader(reader io.Reader) (*FileInfo, error) {
 		}
 		chunk.Type = string(buffer)
 
-		fmt.Printf("Chunk: %s / %s\n", chunk.ID, chunk.Type)
+		logger.Debugf("Chunk: %s / %s", chunk.ID, chunk.Type)
 
 		switch chunk.Type {
 		case "dc":
@@ -69,7 +69,7 @@ func ParseReader(reader io.Reader) (*FileInfo, error) {
 			}
 			chunk.Video.Codec = string(buffer)
 
-			fmt.Printf("Codec: %s\n", chunk.Video.Codec)
+			logger.Debugf("Codec: %s", chunk.Video.Codec)
 
 			var mediaLength int32
 			err = binary.Read(reader, binary.LittleEndian, &mediaLength)
@@ -77,7 +77,7 @@ func ParseReader(reader io.Reader) (*FileInfo, error) {
 				return nil, fmt.Errorf("Could not read the media length for chunk %d: %v", i, err)
 			}
 
-			fmt.Printf("Media length: %d\n", mediaLength)
+			logger.Debugf("Media length: %d", mediaLength)
 
 			var metadataLengthSmall int16
 			err = binary.Read(reader, binary.LittleEndian, &metadataLengthSmall)
@@ -85,28 +85,28 @@ func ParseReader(reader io.Reader) (*FileInfo, error) {
 				return nil, fmt.Errorf("Could not read the (small) metadata length for chunk %d: %v", i, err)
 			}
 
-			fmt.Printf("(Small) metadata length: %d\n", metadataLengthSmall)
+			logger.Debugf("(Small) metadata length: %d", metadataLengthSmall)
 
 			err = binary.Read(reader, binary.LittleEndian, &chunk.Video.Unknown1)
 			if err != nil {
 				return nil, fmt.Errorf("Could not read unknown1 for chunk %d: %v", i, err)
 			}
 
-			fmt.Printf("Unknown1: %d\n", chunk.Video.Unknown1)
+			logger.Debugf("Unknown1: %d", chunk.Video.Unknown1)
 
 			err = binary.Read(reader, binary.LittleEndian, &chunk.Video.Timestamp)
 			if err != nil {
 				return nil, fmt.Errorf("Could not read timestamp for chunk %d: %v", i, err)
 			}
 
-			fmt.Printf("Timestamp: %d\n", chunk.Video.Timestamp)
+			logger.Debugf("Timestamp: %d", chunk.Video.Timestamp)
 
 			err = binary.Read(reader, binary.LittleEndian, &chunk.Video.Unknown2)
 			if err != nil {
 				return nil, fmt.Errorf("Could not read unknown2 for chunk %d: %v", i, err)
 			}
 
-			fmt.Printf("Unknown2: %d\n", chunk.Video.Unknown2)
+			logger.Debugf("Unknown2: %d", chunk.Video.Unknown2)
 
 			var metadataLength int32
 			err = binary.Read(reader, binary.LittleEndian, &metadataLength)
@@ -114,7 +114,7 @@ func ParseReader(reader io.Reader) (*FileInfo, error) {
 				return nil, fmt.Errorf("Could not read the (small) metadata length for chunk %d: %v", i, err)
 			}
 
-			fmt.Printf("Metadata length: %d\n", metadataLength)
+			logger.Debugf("Metadata length: %d", metadataLength)
 
 			metadataLength -= 4
 
@@ -224,7 +224,7 @@ func parseFileHeader(reader io.Reader) (*FileInfo, error) {
 			return nil, fmt.Errorf("Could not read the metadata length: %v", err)
 		}
 
-		fmt.Printf("Metadata length: %v\n", metadataLength)
+		logger.Debugf("Metadata length: %v", metadataLength)
 
 		buffer = make([]byte, metadataLength)
 		_, err = io.ReadFull(reader, buffer)
@@ -255,7 +255,7 @@ func parseMetadata(reader *bytes.Reader, inFileHeader bool) (*Metadata, error) {
 			return nil, fmt.Errorf("Could not read the type on entry %d: %v", i, err)
 		}
 
-		fmt.Printf("Entry %d: Type: %d\n", i, entryType)
+		logger.Debugf("Entry %d: Type: %d", i, entryType)
 
 		if entryType == 0 {
 			continue
@@ -277,7 +277,7 @@ func parseMetadata(reader *bytes.Reader, inFileHeader bool) (*Metadata, error) {
 			entry.Name += string(buffer[0])
 		}
 
-		//fmt.Printf("Entry %d: Name: %s\n", i, entry.Name)
+		//logger.Debugf("Entry %d: Name: %s", i, entry.Name)
 
 		switch entryType {
 		case MetadataTypeFloat64:
@@ -359,7 +359,7 @@ func parseMetadata(reader *bytes.Reader, inFileHeader bool) (*Metadata, error) {
 			return nil, fmt.Errorf("Unknown metadata type on entry %d: %v", i, entryType)
 		}
 
-		fmt.Printf("Entry %d: [%s] = %v\n", i, entry.Name, entry.Value)
+		logger.Debugf("Entry %d: [%s] = %v", i, entry.Name, entry.Value)
 
 		metadata.Entries = append(metadata.Entries, entry)
 	}

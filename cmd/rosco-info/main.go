@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/tekkamanendless/rosco-dashcam-processor/rosco"
 )
 
@@ -23,5 +22,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	spew.Dump(info)
+	fmt.Printf("Metadata: (%d)\n", len(info.Metadata.Entries))
+	for _, entry := range info.Metadata.Entries {
+		fmt.Printf("   * %s = %v\n", entry.Name, entry.Value)
+	}
+
+	streamIDs := info.StreamIDs()
+	fmt.Printf("Streams: (%d)\n", len(streamIDs))
+	for i, streamID := range streamIDs {
+		fmt.Printf("   %d. %s\n", i, streamID)
+	}
+
+	for _, streamID := range streamIDs {
+		fmt.Printf("Stream: %s\n", streamID)
+		chunks := info.ChunksForStreamID(streamID)
+		fmt.Printf("   Chunks: %d\n", len(chunks))
+	}
+
+	//spew.Dump(info)
 }
