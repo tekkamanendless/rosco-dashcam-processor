@@ -24,20 +24,27 @@ Each NVR file consists of two parts:
 1. (2 bytes) Stream type; either "dc" or "wb"
 1. If stream type is "dc":
    1. (4 bytes) Encoding; always "H264"
-   1. (4 bytes) Length of media
-   1. (2 bytes) Length of metadata
+   1. (4 bytes) Length of media (everything after the metadata)
+   1. (2 bytes) Length of metadata?
    1. (2 bytes) ???
    1. (4 bytes) Timestamp
    1. (4 bytes) ??? (always zero)
-   1. (4 bytes) Length of metadata? again?
+   1. (4 bytes) Length of metadata (including these 4 bytes)
    1. (see above) List of metadata; see "Metadata"
    1. (see above) Stream data
 1. If stream type is "wb":
    1. (2 bytes) Length of audio channel data
-   1. (2 bytes) Lenth of remaining data
-   1. Remaining data
-      1. (4 bytes) Timestamp
-	  1. (4 bytes) ??? (always zero)
-	  1. (see above) Audio channel
-	  1. ...
+   1. (2 bytes) Length of everything until the end of the first channel
+   1. (4 bytes) Timestamp (included in that second length)
+   1. (4 bytes) ??? (always zero) (included in that second length)
+   1. (see above) Audio channel
+   1. (see above) Audio channel
 
+## Metadata
+
+1. (1 byte) Type
+   1. `4`; Metadata (4 bytes for the length of the metadata, including those 4 bytes)
+1. (null-terminated) Name
+1. (see above by type) Value
+
+* `ts`; the unix timestamp, in milliseconds
