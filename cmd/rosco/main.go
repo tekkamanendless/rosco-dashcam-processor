@@ -34,6 +34,7 @@ func main() {
 
 	{
 		dumpValue := false
+		headerOnlyValue := false
 		var infoCommand = &cobra.Command{
 			Use:   "info <filename> [...]",
 			Short: "Show the information from the given file(s)",
@@ -42,7 +43,7 @@ func main() {
 			Run: func(cmd *cobra.Command, args []string) {
 				for _, filename := range args {
 					fmt.Printf("File: %s\n", filename)
-					info, err := parseFilename(filename)
+					info, err := parseFilename(filename, headerOnlyValue)
 					if err != nil {
 						fmt.Printf("Error: %v\n", err)
 						continue
@@ -56,6 +57,7 @@ func main() {
 			},
 		}
 		infoCommand.Flags().BoolVar(&dumpValue, "dump", false, "Dump out everything about the file")
+		infoCommand.Flags().BoolVar(&headerOnlyValue, "header-only", false, "Only read the header data")
 		rootCommand.AddCommand(infoCommand)
 	}
 
@@ -83,7 +85,7 @@ func main() {
 					streamID := args[1]
 					destinationFilename := args[2]
 
-					info, err := parseFilename(inputFile)
+					info, err := parseFilename(inputFile, false)
 					if err != nil {
 						fmt.Printf("Error: %v\n", err)
 						os.Exit(1)
@@ -181,7 +183,7 @@ func main() {
 }
 
 // parseFilename parses the given file and returns a `FileInfo` instance.
-func parseFilename(filename string) (*rosco.FileInfo, error) {
+func parseFilename(filename string, headerOnly bool) (*rosco.FileInfo, error) {
 	handle, err := os.Open(filename)
 	if err != nil {
 		fmt.Printf("Could not open file '%s': %v\n", filename, err)
@@ -189,7 +191,7 @@ func parseFilename(filename string) (*rosco.FileInfo, error) {
 	}
 	defer handle.Close()
 
-	info, err := rosco.ParseReader(handle)
+	info, err := rosco.ParseReader(handle, headerOnly)
 	if err != nil {
 		fmt.Printf("Could not parse file: %v\n", err)
 		return nil, err

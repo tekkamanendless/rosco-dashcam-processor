@@ -23,7 +23,7 @@ const (
 )
 
 // ParseReader parses an NVR file using an `io.Reader` instance.
-func ParseReader(reader io.Reader) (*FileInfo, error) {
+func ParseReader(reader io.Reader, headerOnly bool) (*FileInfo, error) {
 	buffer := make([]byte, HeaderSize)
 	_, err := io.ReadFull(reader, buffer)
 	if err != nil {
@@ -33,6 +33,10 @@ func ParseReader(reader io.Reader) (*FileInfo, error) {
 	fileInfo, err := parseFileHeader(bytes.NewReader(buffer))
 	if err != nil {
 		return nil, fmt.Errorf("Could not parse header: %v", err)
+	}
+
+	if headerOnly {
+		return fileInfo, nil
 	}
 
 	for i := 0; ; i++ {
