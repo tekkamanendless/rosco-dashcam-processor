@@ -96,10 +96,11 @@ func main() {
 
 					channelCount := 0
 					for _, chunk := range chunks {
-						if chunk.Audio != nil {
-							if len(chunk.Audio.Channels) > channelCount {
-								channelCount = len(chunk.Audio.Channels)
-							}
+						if chunk.Audio == nil {
+							continue
+						}
+						if len(chunk.Audio.Channels) > channelCount {
+							channelCount = len(chunk.Audio.Channels)
 						}
 					}
 
@@ -110,17 +111,18 @@ func main() {
 
 					switch format {
 					case "raw":
-						leftBytes := []byte{}
+						rawBytes := []byte{}
 						for _, chunk := range chunks {
-							if chunk.Audio != nil {
-								if len(chunk.Audio.Channels) != channelCount {
-									panic("Wrong channel count")
-								}
-
-								leftBytes = append(leftBytes, chunk.Audio.Channels[0]...)
+							if chunk.Audio == nil {
+								continue
 							}
+							if len(chunk.Audio.Channels) != channelCount {
+								panic("Wrong channel count")
+							}
+
+							rawBytes = append(rawBytes, chunk.Audio.Channels[0]...)
 						}
-						ioutil.WriteFile(destinationFilename, leftBytes, 0644)
+						ioutil.WriteFile(destinationFilename, rawBytes, 0644)
 					case "wav":
 						intBuffer := &audio.IntBuffer{
 							Format: &audio.Format{
@@ -131,26 +133,27 @@ func main() {
 						}
 
 						for _, chunk := range chunks {
-							if chunk.Audio != nil {
-								if len(chunk.Audio.Channels) != channelCount {
-									panic("Wrong channel count")
-								}
+							if chunk.Audio == nil {
+								continue
+							}
+							if len(chunk.Audio.Channels) != channelCount {
+								panic("Wrong channel count")
+							}
 
-								dataLength := 0
-								for c, channelData := range chunk.Audio.Channels {
-									if c == 0 {
-										dataLength = len(channelData)
-									} else {
-										if len(channelData) != dataLength {
-											panic("Wrong data length")
-										}
+							dataLength := 0
+							for c, channelData := range chunk.Audio.Channels {
+								if c == 0 {
+									dataLength = len(channelData)
+								} else {
+									if len(channelData) != dataLength {
+										panic("Wrong data length")
 									}
 								}
+							}
 
-								for d := 0; d < dataLength; d++ {
-									for c := range chunk.Audio.Channels {
-										intBuffer.Data = append(intBuffer.Data, int(chunk.Audio.Channels[c][d]))
-									}
+							for d := 0; d < dataLength; d++ {
+								for c := range chunk.Audio.Channels {
+									intBuffer.Data = append(intBuffer.Data, int(chunk.Audio.Channels[c][d]))
 								}
 							}
 						}
@@ -172,6 +175,47 @@ func main() {
 			}
 			extractAudioCommand.Flags().StringVar(&format, "format", format, "The output file format (can be one of: raw, wav)")
 			extractCommand.AddCommand(extractAudioCommand)
+		}
+
+		{
+			format := "mp4"
+			var extractVideoCommand = &cobra.Command{
+				Use:   "video <input-file> <stream> <output-file>",
+				Short: "Extract a video stream from a file",
+				//Long: ``,
+				Args: cobra.ExactArgs(3),
+				Run: func(cmd *cobra.Command, args []string) {
+					inputFile := args[0]
+					streamID := args[1]
+					destinationFilename := args[2]
+
+					info, err := parseFilename(inputFile, false)
+					if err != nil {
+						fmt.Printf("Error: %v\n", err)
+						os.Exit(1)
+					}
+
+					fmt.Printf("Extracting vido data from stream %s...\n", streamID)
+					chunks := info.ChunksForStreamID(streamID)
+
+					switch format {
+					case "raw":
+						rawBytes := []byte{}
+						for _, chunk := range chunks {
+							if chunk.Video == nil {
+								continue
+							}
+							rawBytes = append(rawBytes, chunk.Video.Media...)
+						}
+						ioutil.WriteFile(destinationFilename, rawBytes, 0644)
+					default:
+						fmt.Printf("Invalid video format: %s\n", format)
+						os.Exit(1)
+					}
+				},
+			}
+			extractVideoCommand.Flags().StringVar(&format, "format", format, "The output file format (can be one of: raw, mp4)")
+			extractCommand.AddCommand(extractVideoCommand)
 		}
 	}
 
