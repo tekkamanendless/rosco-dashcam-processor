@@ -17,7 +17,7 @@ const (
 	MetadataTypeString       = 0x02
 	MetadataType3            = 0x03 // 32-bit integer?
 	MetadataType4            = 0x04 // Sub-metadata
-	MetadataType8            = 0x08 // 16-bit integer?  8-bit integer?  Seems different in file header and chunk metadata...
+	MetadataType8            = 0x08 // 8-bit integer
 	MetadataTypeInt64        = 0x09
 	MetadataType10           = 0x10 // 32-bit integer?
 )

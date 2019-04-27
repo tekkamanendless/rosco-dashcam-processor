@@ -1,10 +1,13 @@
 # Format
+An NVR file is a proprietary audio/video container that attaches metadata to specific parts of the video streams, including voltage, speed, etc.
+
 Each NVR file consists of two parts:
 
 1. (65536 bytes) Header
 1. (remainder) List of stream data
 
 ## File header
+The file header contains the filename, which itself contains some time information, as well as some metadata about the camera.
 
 1. (4 bytes) Filetype ID; always "SAYS"
 1. (32 bytes) ???
@@ -12,17 +15,16 @@ Each NVR file consists of two parts:
 1. (4 bytes) Length of metadata
 1. (see above) List of metadata; see "Metadata"
 
-## Metadata
-
-1. (1 byte) Type
-1. (until a null byte is read) Name
-1. (depends on type) Value
-
 ## Stream data
+Streams can be either audio or video streams.
+
+Audio streams are encoded as 8-bit (Mu-law) audio, one channel at a time.
+
+Video streams are encoded as h.264 packets.
 
 1. (2 bytes) Stream identifier (two ASCII digits)
 1. (2 bytes) Stream type; either "dc" or "wb"
-1. If stream type is "dc":
+1. If stream type is "dc" (then this is a video stream):
    1. (4 bytes) Encoding; always "H264"
    1. (4 bytes) Length of media (everything after the metadata); note that this will need to be padded to 8 bytes
    1. (2 bytes) Length of metadata
@@ -32,7 +34,7 @@ Each NVR file consists of two parts:
    1. (4 bytes) Length of metadata (including these 4 bytes)
    1. (see above) List of metadata; see "Metadata"
    1. (see above) Stream data
-1. If stream type is "wb":
+1. If stream type is "wb" (then this is an audio stream):
    1. (2 bytes) Length of audio channel data
    1. (2 bytes) Length of everything until the end of the first channel
    1. (4 bytes) Timestamp (included in that second length) (appears to be in 1/1000000 seconds)
@@ -41,6 +43,7 @@ Each NVR file consists of two parts:
    1. (see above) Audio channel
 
 ## Metadata
+Metadata is used to store arbitrary data.
 
 1. (1 byte) Type
    1. `1`; 64-bit floating point
@@ -52,5 +55,7 @@ Each NVR file consists of two parts:
    1. `10`; ??? 32-bit integer?
 1. (null-terminated) Name
 1. (see above by type) Value
+
+Common metadata keys:
 
 * `ts`; the unix timestamp, in milliseconds
