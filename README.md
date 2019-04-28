@@ -24,5 +24,17 @@ rosco info /path/to/file.nvr
 Extract the audio from a file as a WAV file:
 
 ```
-rosco export audio /path/to/file.nvr 17 /tmp/audio.wav
+rosco export audio /path/to/file.nvr 1 /tmp/audio.wav
+```
+
+Extract the outside camera's video from a file as an AVI file:
+
+```
+rosco export video /path/to/file.nvr 0 /tmp/camera0.avi
+```
+
+Extract the inside camera's video from a file as an AVI file:
+
+```
+rosco export video /path/to/file.nvr 1 /tmp/camera0.avi
 ```
