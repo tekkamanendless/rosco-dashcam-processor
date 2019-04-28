@@ -32,7 +32,7 @@ Video streams are encoded as h.264 packets.
    1. (2 bytes) Length of metadata
    1. (2 bytes) ???
    1. (4 bytes) Timestamp (appears to be in 1/1000000 seconds)
-   1. (4 bytes) ??? (always zero)
+   1. (4 bytes) ??? (always zero); this may be the first part of a 64-bit timestamp
    1. (4 bytes) Length of metadata (including these 4 bytes)
    1. (see above) List of metadata; see "Metadata"
    1. (see above) Stream data

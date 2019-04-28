@@ -23,8 +23,15 @@ func (f *FileInfo) StreamIDs() []string {
 func (f *FileInfo) ChunksForStreamID(streamID string) []*Chunk {
 	chunks := []*Chunk{}
 
+	lastTimestamp := uint32(0)
 	for _, chunk := range f.Chunks {
 		if chunk.ID == streamID {
+			if chunk.Video != nil {
+				if chunk.Video.Timestamp < lastTimestamp {
+					logger.Warnf("Chunk timestamp out of order: previous: %d, current: %v", lastTimestamp, chunk.Video.Timestamp)
+				}
+				lastTimestamp = chunk.Video.Timestamp
+			}
 			chunks = append(chunks, chunk)
 		}
 	}
