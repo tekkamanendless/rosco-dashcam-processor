@@ -1,12 +1,13 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io/ioutil"
 	"os"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/go-audio/audio"
 	"github.com/go-audio/wav"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -98,73 +99,36 @@ func main() {
 						os.Exit(1)
 					}
 
-					fmt.Printf("Exporting audio data from stream %s...\n", streamID)
-					chunks := info.ChunksForStreamID(streamID)
-
-					channelCount := 0
-					for _, chunk := range chunks {
-						if chunk.Audio == nil {
-							continue
-						}
-						if len(chunk.Audio.Channels) > channelCount {
-							channelCount = len(chunk.Audio.Channels)
-						}
+					intBuffer, err := roscoconv.MakePCM(info, streamID)
+					if err != nil {
+						fmt.Printf("Error: %v\n", err)
+						os.Exit(1)
 					}
 
-					if channelCount == 0 {
+					fmt.Printf("Exporting audio data from stream %s...\n", streamID)
+
+					if intBuffer.Format.NumChannels == 0 {
 						fmt.Printf("No audio data in stream.\n")
 						os.Exit(1)
 					}
 
 					switch format {
 					case "raw":
-						rawBytes := []byte{}
-						for _, chunk := range chunks {
-							if chunk.Audio == nil {
-								continue
-							}
-							if len(chunk.Audio.Channels) != channelCount {
-								panic("Wrong channel count")
-							}
+						depthInBytes := intBuffer.SourceBitDepth / 8
 
-							rawBytes = append(rawBytes, chunk.Audio.Channels[0]...)
+						buffer := new(bytes.Buffer)
+						for _, currentInt := range intBuffer.Data {
+							switch depthInBytes {
+							case 1:
+								newInt := int8(currentInt)
+								binary.Write(buffer, binary.LittleEndian, newInt)
+							default:
+								fmt.Printf("Unsupported bit depth: %d\n", intBuffer.SourceBitDepth)
+								os.Exit(1)
+							}
 						}
-						ioutil.WriteFile(destinationFilename, rawBytes, 0644)
+						ioutil.WriteFile(destinationFilename, buffer.Bytes(), 0644)
 					case "wav":
-						intBuffer := &audio.IntBuffer{
-							Format: &audio.Format{
-								NumChannels: channelCount,
-								SampleRate:  8000,
-							},
-							SourceBitDepth: 8,
-						}
-
-						for _, chunk := range chunks {
-							if chunk.Audio == nil {
-								continue
-							}
-							if len(chunk.Audio.Channels) != channelCount {
-								panic("Wrong channel count")
-							}
-
-							dataLength := 0
-							for c, channelData := range chunk.Audio.Channels {
-								if c == 0 {
-									dataLength = len(channelData)
-								} else {
-									if len(channelData) != dataLength {
-										panic("Wrong data length")
-									}
-								}
-							}
-
-							for d := 0; d < dataLength; d++ {
-								for c := range chunk.Audio.Channels {
-									intBuffer.Data = append(intBuffer.Data, int(chunk.Audio.Channels[c][d]))
-								}
-							}
-						}
-
 						out, err := os.Create(destinationFilename)
 						if err != nil {
 							panic(fmt.Sprintf("Couldn't create output file: %v", err))
