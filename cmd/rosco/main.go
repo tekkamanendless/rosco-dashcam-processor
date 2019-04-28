@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
+	"sort"
+	"strings"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/go-audio/wav"
@@ -20,7 +23,9 @@ func main() {
 	var rootCommand = &cobra.Command{
 		Use:   "rosco",
 		Short: "Rosco dashcam video file processor",
-		//Long: ``,
+		Long: `
+This tool processes Rosco dashcam files (typically with the extension ".nvr").
+`,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			if debugValue {
 				rosco.SetLogLevel(logrus.DebugLevel)
@@ -39,7 +44,11 @@ func main() {
 		var infoCommand = &cobra.Command{
 			Use:   "info <filename> [...]",
 			Short: "Show the information from the given file(s)",
-			//Long: ``,
+			Long: `
+The output here isn't particularly pretty, but it should be enough for you to do whatever you need to do with the files.
+
+For a more aggressive output, use the --dump flag.
+`,
 			Args: cobra.MinimumNArgs(1),
 			Run: func(cmd *cobra.Command, args []string) {
 				for _, filename := range args {
@@ -79,7 +88,11 @@ func main() {
 			var exportAudioCommand = &cobra.Command{
 				Use:   "audio <input-file> <stream> <output-file>",
 				Short: "Export an audio stream from a file",
-				//Long: ``,
+				Long: `
+This provides a more targeted approach to exporting audio data.
+It operates on a single file at a time, allowing you to specify exactly which stream you want to export.
+You may also choose the output format.
+`,
 				Args: cobra.ExactArgs(3),
 				Run: func(cmd *cobra.Command, args []string) {
 					inputFile := args[0]
@@ -144,7 +157,10 @@ func main() {
 			var exportVideoCommand = &cobra.Command{
 				Use:   "video <input-file> <stream> <output-file>",
 				Short: "Export a video stream from a file",
-				//Long: ``,
+				Long: `
+This provides a more targeted approach to exporting video data.
+It operates on a single file at a time, allowing you to specify exactly which stream you want to export.
+`,
 				Args: cobra.ExactArgs(3),
 				Run: func(cmd *cobra.Command, args []string) {
 					inputFile := args[0]
@@ -183,6 +199,98 @@ func main() {
 			}
 			exportVideoCommand.Flags().StringVar(&format, "format", format, "The output file format (can be one of: avi)")
 			exportCommand.AddCommand(exportVideoCommand)
+		}
+
+		{
+			outputDirectory := ""
+			var exportDvproCommand = &cobra.Command{
+				Use:   "dvpro <input-file>[ ...]",
+				Short: "Export a video streams from a list of files and/or directories",
+				Long: `
+The intent of this command is to replicate the functionality from the DV-Pro tools provided by Rosco.
+With this, you can quickly export all of the videos from a particular directory or collection of files.
+`,
+				Args: cobra.MinimumNArgs(1),
+				Run: func(cmd *cobra.Command, args []string) {
+					inputFiles := []string{}
+					for _, arg := range args {
+						fileInfo, err := os.Stat(arg)
+						if err != nil {
+							fmt.Printf("Error: %v\n", err)
+							os.Exit(1)
+						}
+						if fileInfo.IsDir() {
+							fileInfos, err := ioutil.ReadDir(arg)
+							if err != nil {
+								fmt.Printf("Error: %v\n", err)
+								os.Exit(1)
+							}
+							for _, fileInfo := range fileInfos {
+								if !fileInfo.IsDir() && strings.HasSuffix(fileInfo.Name(), ".nvr") {
+									inputFiles = append(inputFiles, arg+"/"+fileInfo.Name())
+								}
+							}
+						} else {
+							inputFiles = append(inputFiles, arg)
+						}
+					}
+
+					for _, inputFile := range inputFiles {
+						info, err := parseFilename(inputFile, false)
+						if err != nil {
+							fmt.Printf("Error: %v\n", err)
+							os.Exit(1)
+						}
+
+						logicalStreamIDs := []string{}
+						{
+							logicalStreamMap := map[string]bool{}
+							for _, streamID := range info.StreamIDs() {
+								if len(streamID) < 1 {
+									continue
+								}
+								logicalStreamMap[string(streamID[0])] = true
+							}
+							for id := range logicalStreamMap {
+								logicalStreamIDs = append(logicalStreamIDs, id)
+							}
+							sort.Strings(logicalStreamIDs)
+						}
+
+						for streamIndex, streamID := range logicalStreamIDs {
+							fmt.Printf("Exporting video data from stream %s...\n", streamID)
+							file, err := roscoconv.MakeAVI(info, streamID)
+							if err != nil {
+								fmt.Printf("Error: %v\n", err)
+								os.Exit(1)
+							}
+
+							destinationFolder := outputDirectory
+							if len(outputDirectory) == 0 {
+								destinationFolder = path.Dir(inputFile)
+							}
+							destinationBaseName := strings.TrimSuffix(path.Base(inputFile), ".nvr")
+							destinationFilename := fmt.Sprintf("%s_%d.avi", destinationBaseName, streamIndex+1)
+							destinationFullPath := destinationFilename
+							if len(destinationFolder) > 0 {
+								destinationFullPath = strings.TrimSuffix(destinationFolder, "/") + "/" + destinationFullPath
+							}
+							fmt.Printf("-> %s\n", destinationFullPath)
+							out, err := os.Create(destinationFullPath)
+							if err != nil {
+								panic(fmt.Sprintf("Couldn't create output file: %v", err))
+							}
+							defer out.Close()
+							err = riff.Write(out, file)
+							if err != nil {
+								panic(err)
+							}
+						}
+					}
+				},
+			}
+			exportDvproCommand.Flags().StringVar(&outputDirectory, "output-directory", outputDirectory, "The output direcotyr; if not specified, the new files will be created next to the NVR files")
+			exportCommand.AddCommand(exportDvproCommand)
 		}
 	}
 
