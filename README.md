@@ -15,6 +15,14 @@ But that's why this tool is here!
 For more information on the file format, see [here](README_FORMAT.md)
 
 ## Command Line
+### Download
+If you want to just use the `rosco` binary, you can get it using:
+
+```
+go get github.com/tekkamanendless/rosco-dashcam-processor/cmd/rosco
+```
+
+### Usage
 You can see everything that this can do using:
 
 ```
@@ -65,6 +73,13 @@ Extract the inside camera's video from a file as an AVI file:
 ```
 rosco export video /path/to/file.nvr 1 /tmp/camera0.avi
 ```
+
+## Packages
+The following Go packages are provided:
+
+* `riff`, which provides the minimal support necessary to build a simple AVI file.
+* `rosco`, which provides the data structures and functions necessary to work with Rosco NVR files.
+* `roscoconv`, which provides tools for converting from Rosco NVR files to other formats.
 
 ## Future Development
 Ideas for future development:
