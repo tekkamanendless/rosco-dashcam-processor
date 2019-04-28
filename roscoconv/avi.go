@@ -112,6 +112,7 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 			ID:         "00dc",
 			Data:       chunk.Video.Media,
 			IsKeyframe: strings.HasSuffix(chunk.ID, "0"),
+			Timestamp:  chunk.Video.Timestamp,
 		}
 		videoStream.Chunks = append(videoStream.Chunks, streamChunk)
 	}
@@ -150,9 +151,9 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 				FormatTag:      0x0007, // mu-law
 				Channels:       int16(audioData.Format.NumChannels),
 				SamplesPerSec:  int32(audioData.Format.SampleRate),
-				AvgBytesPerSec: int32(audioData.Format.SampleRate / (audioData.SourceBitDepth / 8)),
-				BlockAlign:     int16(audioData.SourceBitDepth / 8),
-				BitsPerSample:  int16(audioData.SourceBitDepth),
+				AvgBytesPerSec: int32(audioData.Format.SampleRate * audioData.Format.NumChannels / (audioData.SourceBitDepth / 8)),
+				BlockAlign:     int16(audioData.SourceBitDepth / 8 * audioData.Format.NumChannels),
+				BitsPerSample:  int16(audioData.SourceBitDepth * audioData.Format.NumChannels),
 			},
 		}
 
@@ -162,11 +163,30 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 			return nil, err
 		}
 
-		streamChunk := riff.Chunk{
-			ID:   "01wb",
-			Data: rawBytes,
+		// Break up the audio into smaller chunks.
+		// Increments for 1-second chunks.
+		timestampIncrement := uint32(1000000)
+		offsetIncrement := audioData.Format.SampleRate * audioData.Format.NumChannels * (audioData.SourceBitDepth / 8)
+		// Now, break up those increments into smaller increments.
+		// The smaller the increment, the better the AVI file ends up working out.
+		// From my experiments, 1-second intervals are too large.
+		timestampIncrement /= 8
+		offsetIncrement /= 8
+		// Start the audio with the video using the video's first timestamp.
+		currentTimestamp := videoStream.Chunks[0].Timestamp
+		for offset := 0; offset < len(rawBytes); offset += offsetIncrement {
+			endOffset := offset + offsetIncrement
+			if endOffset > len(rawBytes) {
+				endOffset = len(rawBytes)
+			}
+			streamChunk := riff.Chunk{
+				ID:        "01wb",
+				Data:      rawBytes[offset:endOffset],
+				Timestamp: currentTimestamp,
+			}
+			audioStream.Chunks = append(audioStream.Chunks, streamChunk)
+			currentTimestamp += timestampIncrement
 		}
-		audioStream.Chunks = append(audioStream.Chunks, streamChunk)
 
 		file.Streams = append(file.Streams, audioStream)
 		file.Header.Streams++

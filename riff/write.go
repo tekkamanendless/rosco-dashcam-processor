@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"sort"
 )
 
 // Write writes a RIFF file.
@@ -57,31 +58,41 @@ func Write(writer io.Writer, file *AVIFile) error {
 	{
 		movieListBuffer := new(bytes.Buffer)
 		indexes := []AVIChunkIndex{}
-		for _, stream := range file.Streams {
-			for _, chunk := range stream.Chunks {
-				chunkIndex := AVIChunkIndex{
-					ID:          chunk.ID,
-					Flags:       0,
-					ChunkOffset: int32(4 + movieListBuffer.Len()),
-					ChunkLength: int32(len(chunk.Data)),
-				}
 
-				err = writeChunk(movieListBuffer, chunk.ID, chunk.Data)
+		// Interleave the chunks using the sneaky timestamp field that we added to the
+		// chunk information.
+		interleavedChunks := []Chunk{}
+		for _, stream := range file.Streams {
+			interleavedChunks = append(interleavedChunks, stream.Chunks...)
+		}
+		sort.Slice(interleavedChunks, func(i, j int) bool {
+			return interleavedChunks[i].Timestamp < interleavedChunks[j].Timestamp
+		})
+
+		for _, chunk := range interleavedChunks {
+			chunkIndex := AVIChunkIndex{
+				ID:          chunk.ID,
+				Flags:       0,
+				ChunkOffset: int32(4 + movieListBuffer.Len()),
+				ChunkLength: int32(len(chunk.Data)),
+			}
+
+			err = writeChunk(movieListBuffer, chunk.ID, chunk.Data)
+			if err != nil {
+				return err
+			}
+			// Line up on a 16-bit boundary.
+			if len(chunk.Data)%2 != 0 {
+				_, err = movieListBuffer.Write([]byte{0})
 				if err != nil {
 					return err
 				}
-				if len(chunk.Data)%2 != 0 {
-					_, err = movieListBuffer.Write([]byte{0})
-					if err != nil {
-						return err
-					}
-				}
-
-				if chunk.IsKeyframe {
-					chunkIndex.Flags = AVIChunkIndexKeyframe
-				}
-				indexes = append(indexes, chunkIndex)
 			}
+
+			if chunk.IsKeyframe {
+				chunkIndex.Flags = AVIChunkIndexKeyframe
+			}
+			indexes = append(indexes, chunkIndex)
 		}
 		err = writeList(buffer, "movi", movieListBuffer.Bytes())
 		if err != nil {
