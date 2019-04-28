@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -12,6 +10,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/go-audio/audio"
 	"github.com/go-audio/wav"
+	"github.com/nareix/joy4/codec/h264parser"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/tekkamanendless/rosco-dashcam-processor/riff"
@@ -233,6 +232,41 @@ func main() {
 						return chunks[i].Video.Timestamp < chunks[j].Video.Timestamp
 					})
 
+					// Figure out the video information.
+					var videoWidth int32
+					var videoHeight int32
+					for _, chunk := range chunks {
+						// Only use the key frames.
+						if !strings.HasSuffix(chunk.ID, "0") {
+							continue
+						}
+						nalus, _ := h264parser.SplitNALUs(chunk.Video.Media)
+						if len(nalus) == 0 {
+							continue
+						}
+						for _, nalu := range nalus {
+							spsInfo, err := h264parser.ParseSPS(nalu)
+							if err != nil {
+								continue
+							}
+							videoWidth = int32(spsInfo.Width)
+							videoHeight = int32(spsInfo.Height)
+						}
+					}
+
+					// Strip out any frames before the first keyframe.  We can't do anything
+					// without a keyframe.
+					firstKeyframeIndex := 0
+					for chunkIndex, chunk := range chunks {
+						// Only use the key frames.
+						if !strings.HasSuffix(chunk.ID, "0") {
+							continue
+						}
+						firstKeyframeIndex = chunkIndex
+						break
+					}
+					chunks = chunks[firstKeyframeIndex:]
+
 					switch format {
 					case "avi":
 						stream := riff.Stream{
@@ -241,14 +275,14 @@ func main() {
 								Handler:             [4]byte{'H', '2', '6', '4'}, // TODO: Pull this from the chunks.
 								Scale:               1,
 								Rate:                30, // TODO: Pull the frame rate from the chunks.
-								SuggestedBufferSize: 0x10000,
-								Width:               1280, // TODO: Pull this from the metadata.
-								Height:              720,  // TODO: Pull this from the metadata.
+								SuggestedBufferSize: 65536,
+								Width:               int16(videoWidth),
+								Height:              int16(videoHeight),
 							},
 							Format: riff.AVIStreamFormat{
 								Size:        int32(len(new(riff.AVIStreamFormat).Bytes())),
-								Width:       1280, // TODO: Pull this from the metadata.
-								Height:      720,  // TODO: Pull this from the metadata.
+								Width:       videoWidth,
+								Height:      videoHeight,
 								Planes:      1,
 								BitCount:    24,                          // TODO: Pull this from the metadata.
 								Compression: [4]byte{'H', '2', '6', '4'}, // TODO: Pull this from the chunks.
@@ -269,7 +303,7 @@ func main() {
 						stream.Header.Length = int32(len(stream.Chunks))
 						file := &riff.AVIFile{
 							AVIHeader: riff.AVIHeader{
-								MicroSecPerFrame:    33333,
+								MicroSecPerFrame:    33333, // TODO: Figure this out somehow.
 								MaxBytesPerSec:      0,
 								PaddingGranularity:  0,
 								Flags:               riff.AVIFlagIsInterleaved | riff.AVIFlagTrustCKType | riff.AVIFlagHasIndex,
@@ -277,8 +311,8 @@ func main() {
 								InitialFrames:       0,
 								Streams:             1,
 								SuggestedBufferSize: 65536,
-								Width:               1280, // TODO: Pull this from the metadata
-								Height:              720,  // TODO: Pull this from the metadata
+								Width:               videoWidth,
+								Height:              videoHeight,
 								Scale:               0,
 								Rate:                0,
 								Start:               0,
@@ -296,31 +330,13 @@ func main() {
 						if err != nil {
 							panic(err)
 						}
-					case "raw":
-						rawBytes := []byte{}
-						for _, chunk := range chunks {
-							if chunk.Video == nil {
-								continue
-							}
-							{
-								buffer := new(bytes.Buffer)
-								binary.Write(buffer, binary.LittleEndian, []byte{'0', '0', 'd', 'c'})
-								binary.Write(buffer, binary.LittleEndian, int32(len(chunk.Video.Media)))
-								rawBytes = append(rawBytes, buffer.Bytes()...)
-							}
-							rawBytes = append(rawBytes, chunk.Video.Media...)
-							if len(chunk.Video.Media)%2 != 0 {
-								rawBytes = append(rawBytes, byte(0))
-							}
-						}
-						ioutil.WriteFile(destinationFilename, rawBytes, 0644)
 					default:
 						fmt.Printf("Invalid video format: %s\n", format)
 						os.Exit(1)
 					}
 				},
 			}
-			exportVideoCommand.Flags().StringVar(&format, "format", format, "The output file format (can be one of: avi, raw)")
+			exportVideoCommand.Flags().StringVar(&format, "format", format, "The output file format (can be one of: avi)")
 			exportCommand.AddCommand(exportVideoCommand)
 		}
 	}
