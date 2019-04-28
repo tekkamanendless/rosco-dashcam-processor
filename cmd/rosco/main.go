@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -114,24 +112,17 @@ func main() {
 
 					switch format {
 					case "raw":
-						depthInBytes := intBuffer.SourceBitDepth / 8
-
-						buffer := new(bytes.Buffer)
-						for _, currentInt := range intBuffer.Data {
-							switch depthInBytes {
-							case 1:
-								newInt := int8(currentInt)
-								binary.Write(buffer, binary.LittleEndian, newInt)
-							default:
-								fmt.Printf("Unsupported bit depth: %d\n", intBuffer.SourceBitDepth)
-								os.Exit(1)
-							}
+						rawBytes, err := roscoconv.MakeRawAudio(intBuffer)
+						if err != nil {
+							fmt.Printf("Couldn't create audio buffer: %v\n", err)
+							os.Exit(1)
 						}
-						ioutil.WriteFile(destinationFilename, buffer.Bytes(), 0644)
+						ioutil.WriteFile(destinationFilename, rawBytes, 0644)
 					case "wav":
 						out, err := os.Create(destinationFilename)
 						if err != nil {
-							panic(fmt.Sprintf("Couldn't create output file: %v", err))
+							fmt.Printf("Couldn't create output file: %v\n", err)
+							os.Exit(1)
 						}
 						defer out.Close()
 						wavAudioFormat := 0x0007 // mu-law

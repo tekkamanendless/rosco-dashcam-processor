@@ -1,6 +1,10 @@
 package roscoconv
 
 import (
+	"bytes"
+	"encoding/binary"
+	"fmt"
+
 	"github.com/go-audio/audio"
 	"github.com/tekkamanendless/rosco-dashcam-processor/rosco"
 )
@@ -56,4 +60,21 @@ func MakePCM(info *rosco.FileInfo, streamID string) (*audio.IntBuffer, error) {
 	}
 
 	return intBuffer, nil
+}
+
+// MakeRawAudio creates a raw audio stream based on an `IntBuffer`.
+func MakeRawAudio(intBuffer *audio.IntBuffer) ([]byte, error) {
+	depthInBytes := intBuffer.SourceBitDepth / 8
+
+	buffer := new(bytes.Buffer)
+	for _, currentInt := range intBuffer.Data {
+		switch depthInBytes {
+		case 1:
+			newInt := int8(currentInt)
+			binary.Write(buffer, binary.LittleEndian, newInt)
+		default:
+			return nil, fmt.Errorf("Unsupported bit depth: %d", intBuffer.SourceBitDepth)
+		}
+	}
+	return buffer.Bytes(), nil
 }

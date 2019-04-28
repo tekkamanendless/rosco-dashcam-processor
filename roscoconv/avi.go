@@ -26,24 +26,32 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 		}
 	}
 
-	chunks := []*rosco.Chunk{}
+	audioStreamID := streamID
+	if len(audioStreamID) == 1 {
+		audioStreamID += "7"
+	}
+	audioData, err := MakePCM(info, audioStreamID)
+	if err != nil {
+		return nil, err
+	}
+
+	videoChunks := []*rosco.Chunk{}
 	for _, id := range streamIDs {
 		substreamChunks := info.ChunksForStreamID(id)
 		for _, chunk := range substreamChunks {
-			if chunk.Video == nil {
-				continue
+			if chunk.Video != nil {
+				videoChunks = append(videoChunks, chunk)
 			}
-			chunks = append(chunks, chunk)
 		}
 	}
-	sort.Slice(chunks, func(i, j int) bool {
-		return chunks[i].Video.Timestamp < chunks[j].Video.Timestamp
+	sort.Slice(videoChunks, func(i, j int) bool {
+		return videoChunks[i].Video.Timestamp < videoChunks[j].Video.Timestamp
 	})
 
 	// Figure out the video information.
 	var videoWidth int32
 	var videoHeight int32
-	for _, chunk := range chunks {
+	for _, chunk := range videoChunks {
 		// Only use the key frames.
 		if !strings.HasSuffix(chunk.ID, "0") {
 			continue
@@ -53,7 +61,8 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 			continue
 		}
 		for _, nalu := range nalus {
-			spsInfo, err := h264parser.ParseSPS(nalu)
+			var spsInfo h264parser.SPSInfo
+			spsInfo, err = h264parser.ParseSPS(nalu)
 			if err != nil {
 				continue
 			}
@@ -65,7 +74,7 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 	// Strip out any frames before the first keyframe.  We can't do anything
 	// without a keyframe.
 	firstKeyframeIndex := 0
-	for chunkIndex, chunk := range chunks {
+	for chunkIndex, chunk := range videoChunks {
 		// Only use the key frames.
 		if !strings.HasSuffix(chunk.ID, "0") {
 			continue
@@ -73,9 +82,9 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 		firstKeyframeIndex = chunkIndex
 		break
 	}
-	chunks = chunks[firstKeyframeIndex:]
+	videoChunks = videoChunks[firstKeyframeIndex:]
 
-	stream := riff.Stream{
+	videoStream := riff.Stream{
 		Header: riff.AVIStreamHeader{
 			Type:                [4]byte{'v', 'i', 'd', 's'},
 			Handler:             [4]byte{'H', '2', '6', '4'}, // TODO: Pull this from the chunks.
@@ -94,8 +103,8 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 			Compression: [4]byte{'H', '2', '6', '4'}, // TODO: Pull this from the chunks.
 		},
 	}
-	stream.VideoFormat.SizeImage = stream.VideoFormat.Width * stream.VideoFormat.Height * int32(stream.VideoFormat.BitCount) / 8
-	for _, chunk := range chunks {
+	videoStream.VideoFormat.SizeImage = videoStream.VideoFormat.Width * videoStream.VideoFormat.Height * int32(videoStream.VideoFormat.BitCount) / 8
+	for _, chunk := range videoChunks {
 		if chunk.Video == nil {
 			continue
 		}
@@ -104,18 +113,18 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 			Data:       chunk.Video.Media,
 			IsKeyframe: strings.HasSuffix(chunk.ID, "0"),
 		}
-		stream.Chunks = append(stream.Chunks, streamChunk)
+		videoStream.Chunks = append(videoStream.Chunks, streamChunk)
 	}
-	stream.Header.Length = int32(len(stream.Chunks))
+	videoStream.Header.Length = int32(len(videoStream.Chunks))
 	file := &riff.AVIFile{
 		Header: riff.AVIHeader{
 			MicroSecPerFrame:    33333, // TODO: Figure this out somehow.
 			MaxBytesPerSec:      0,
 			PaddingGranularity:  0,
 			Flags:               riff.AVIFlagIsInterleaved | riff.AVIFlagTrustCKType | riff.AVIFlagHasIndex,
-			TotalFrames:         int32(len(stream.Chunks)),
+			TotalFrames:         int32(len(videoStream.Chunks)),
 			InitialFrames:       0,
-			Streams:             1,
+			Streams:             0,
 			SuggestedBufferSize: 65536,
 			Width:               videoWidth,
 			Height:              videoHeight,
@@ -125,7 +134,43 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 			Length:              0,
 		},
 	}
-	file.Streams = append(file.Streams, stream)
+	file.Streams = append(file.Streams, videoStream)
+	file.Header.Streams++
+
+	{
+		audioStream := riff.Stream{
+			Header: riff.AVIStreamHeader{
+				Type:                [4]byte{'a', 'u', 'd', 's'},
+				Handler:             [4]byte{' ', ' ', ' ', ' '},
+				Scale:               1,
+				Rate:                int32(audioData.Format.SampleRate),
+				SuggestedBufferSize: 65536,
+			},
+			AudioFormat: riff.AVIStreamAudioFormat{
+				FormatTag:      0x0007, // mu-law
+				Channels:       int16(audioData.Format.NumChannels),
+				SamplesPerSec:  int32(audioData.Format.SampleRate),
+				AvgBytesPerSec: int32(audioData.Format.SampleRate / (audioData.SourceBitDepth / 8)),
+				BlockAlign:     int16(audioData.SourceBitDepth / 8),
+				BitsPerSample:  int16(audioData.SourceBitDepth),
+			},
+		}
+
+		var rawBytes []byte
+		rawBytes, err = MakeRawAudio(audioData)
+		if err != nil {
+			return nil, err
+		}
+
+		streamChunk := riff.Chunk{
+			ID:   "01wb",
+			Data: rawBytes,
+		}
+		audioStream.Chunks = append(audioStream.Chunks, streamChunk)
+
+		file.Streams = append(file.Streams, audioStream)
+		file.Header.Streams++
+	}
 
 	return file, nil
 }

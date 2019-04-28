@@ -30,9 +30,17 @@ func Write(writer io.Writer, file *AVIFile) error {
 			if err != nil {
 				return err
 			}
-			err = writeChunk(streamListChunks, "strf", stream.VideoFormat.Bytes())
-			if err != nil {
-				return err
+			switch fmt.Sprintf("%s", stream.Header.Type) {
+			case "auds":
+				err = writeChunk(streamListChunks, "strf", stream.AudioFormat.Bytes())
+				if err != nil {
+					return err
+				}
+			case "vids":
+				err = writeChunk(streamListChunks, "strf", stream.VideoFormat.Bytes())
+				if err != nil {
+					return err
+				}
 			}
 
 			err = writeList(headerListBuffer, "strl", streamListChunks.Bytes())
