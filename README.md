@@ -24,5 +24,5 @@ rosco info /path/to/file.nvr
 Extract the audio from a file as a WAV file:
 
 ```
-rosco extract audio /path/to/file.nvr 17 /tmp/audio.wav
+rosco export audio /path/to/file.nvr 17 /tmp/audio.wav
 ```

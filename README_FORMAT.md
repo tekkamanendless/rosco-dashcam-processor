@@ -23,6 +23,8 @@ Audio streams are encoded as 8-bit (Mu-law) audio, one channel at a time.
 Video streams are encoded as h.264 packets.
 
 1. (2 bytes) Stream identifier (two ASCII digits)
+   1. (1 byte) Actual stream identifier (`0` for the first stream, `1` for the second stream, and so on)
+   1. (1 byte) Substream identifier (`0` for key frames, `1` for deltas, `7` for audio)
 1. (2 bytes) Stream type; either "dc" or "wb"
 1. If stream type is "dc" (then this is a video stream):
    1. (4 bytes) Encoding; always "H264"

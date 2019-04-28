@@ -1,15 +1,20 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sort"
+	"strings"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/go-audio/audio"
 	"github.com/go-audio/wav"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/tekkamanendless/rosco-dashcam-processor/riff"
 	"github.com/tekkamanendless/rosco-dashcam-processor/rosco"
 )
 
@@ -62,22 +67,22 @@ func main() {
 	}
 
 	{
-		var extractCommand = &cobra.Command{
-			Use:   "extract",
-			Short: "Extract a stream from a file",
+		var exportCommand = &cobra.Command{
+			Use:   "export",
+			Short: "Export a stream from a file",
 			//Long: ``,
 			Run: func(cmd *cobra.Command, args []string) {
 				cmd.Help()
 				os.Exit(1)
 			},
 		}
-		rootCommand.AddCommand(extractCommand)
+		rootCommand.AddCommand(exportCommand)
 
 		{
 			format := "wav"
-			var extractAudioCommand = &cobra.Command{
+			var exportAudioCommand = &cobra.Command{
 				Use:   "audio <input-file> <stream> <output-file>",
-				Short: "Extract an audio stream from a file",
+				Short: "Export an audio stream from a file",
 				//Long: ``,
 				Args: cobra.ExactArgs(3),
 				Run: func(cmd *cobra.Command, args []string) {
@@ -85,13 +90,18 @@ func main() {
 					streamID := args[1]
 					destinationFilename := args[2]
 
+					// Audio streams appear to be "x7".
+					if len(streamID) == 1 {
+						streamID += "7"
+					}
+
 					info, err := parseFilename(inputFile, false)
 					if err != nil {
 						fmt.Printf("Error: %v\n", err)
 						os.Exit(1)
 					}
 
-					fmt.Printf("Extracting audio data from stream %s...\n", streamID)
+					fmt.Printf("Exporting audio data from stream %s...\n", streamID)
 					chunks := info.ChunksForStreamID(streamID)
 
 					channelCount := 0
@@ -173,15 +183,15 @@ func main() {
 					}
 				},
 			}
-			extractAudioCommand.Flags().StringVar(&format, "format", format, "The output file format (can be one of: raw, wav)")
-			extractCommand.AddCommand(extractAudioCommand)
+			exportAudioCommand.Flags().StringVar(&format, "format", format, "The output file format (can be one of: raw, wav)")
+			exportCommand.AddCommand(exportAudioCommand)
 		}
 
 		{
-			format := "mp4"
-			var extractVideoCommand = &cobra.Command{
+			format := "avi"
+			var exportVideoCommand = &cobra.Command{
 				Use:   "video <input-file> <stream> <output-file>",
-				Short: "Extract a video stream from a file",
+				Short: "Export a video stream from a file",
 				//Long: ``,
 				Args: cobra.ExactArgs(3),
 				Run: func(cmd *cobra.Command, args []string) {
@@ -195,17 +205,112 @@ func main() {
 						os.Exit(1)
 					}
 
-					fmt.Printf("Extracting vido data from stream %s...\n", streamID)
-					chunks := info.ChunksForStreamID(streamID)
+					streamIDs := []string{}
+					for _, id := range info.StreamIDs() {
+						if len(streamID) == 1 {
+							if strings.HasPrefix(id, streamID) {
+								streamIDs = append(streamIDs, id)
+							}
+						} else if len(streamID) == 2 {
+							if id == streamID {
+								streamIDs = append(streamIDs, id)
+							}
+						}
+					}
+
+					fmt.Printf("Exporting video data from stream %s...\n", streamID)
+					chunks := []*rosco.Chunk{}
+					for _, id := range streamIDs {
+						substreamChunks := info.ChunksForStreamID(id)
+						for _, chunk := range substreamChunks {
+							if chunk.Video == nil {
+								continue
+							}
+							chunks = append(chunks, chunk)
+						}
+					}
+					sort.Slice(chunks, func(i, j int) bool {
+						return chunks[i].Video.Timestamp < chunks[j].Video.Timestamp
+					})
 
 					switch format {
+					case "avi":
+						stream := riff.Stream{
+							Header: riff.AVIStreamHeader{
+								Type:                [4]byte{'v', 'i', 'd', 's'},
+								Handler:             [4]byte{'H', '2', '6', '4'}, // TODO: Pull this from the chunks.
+								Scale:               1,
+								Rate:                30, // TODO: Pull the frame rate from the chunks.
+								SuggestedBufferSize: 0x10000,
+								Width:               1280, // TODO: Pull this from the metadata.
+								Height:              720,  // TODO: Pull this from the metadata.
+							},
+							Format: riff.AVIStreamFormat{
+								Size:        int32(len(new(riff.AVIStreamFormat).Bytes())),
+								Width:       1280, // TODO: Pull this from the metadata.
+								Height:      720,  // TODO: Pull this from the metadata.
+								Planes:      1,
+								BitCount:    24,                          // TODO: Pull this from the metadata.
+								Compression: [4]byte{'H', '2', '6', '4'}, // TODO: Pull this from the chunks.
+							},
+						}
+						stream.Format.SizeImage = stream.Format.Width * stream.Format.Height * int32(stream.Format.BitCount) / 8
+						for _, chunk := range chunks {
+							if chunk.Video == nil {
+								continue
+							}
+							streamChunk := riff.Chunk{
+								ID:   "00dc",
+								Data: chunk.Video.Media,
+							}
+							stream.Chunks = append(stream.Chunks, streamChunk)
+						}
+						stream.Header.Length = int32(len(stream.Chunks))
+						file := &riff.AVIFile{
+							AVIHeader: riff.AVIHeader{
+								MicroSecPerFrame:    33333,
+								MaxBytesPerSec:      0,
+								PaddingGranularity:  0,
+								Flags:               riff.AVIFlagIsInterleaved | riff.AVIFlagTrustCKType, // TODO: Add the index.
+								TotalFrames:         int32(len(stream.Chunks)),
+								InitialFrames:       0,
+								Streams:             1,
+								SuggestedBufferSize: 65536,
+								Width:               1280, // TODO: Pull this from the metadata
+								Height:              720,  // TODO: Pull this from the metadata
+								Scale:               0,
+								Rate:                0,
+								Start:               0,
+								Length:              0,
+							},
+						}
+						file.Streams = append(file.Streams, stream)
+
+						out, err := os.Create(destinationFilename)
+						if err != nil {
+							panic(fmt.Sprintf("Couldn't create output file: %v", err))
+						}
+						defer out.Close()
+						err = riff.Write(out, file)
+						if err != nil {
+							panic(err)
+						}
 					case "raw":
 						rawBytes := []byte{}
 						for _, chunk := range chunks {
 							if chunk.Video == nil {
 								continue
 							}
+							{
+								buffer := new(bytes.Buffer)
+								binary.Write(buffer, binary.LittleEndian, []byte{'0', '0', 'd', 'c'})
+								binary.Write(buffer, binary.LittleEndian, int32(len(chunk.Video.Media)))
+								rawBytes = append(rawBytes, buffer.Bytes()...)
+							}
 							rawBytes = append(rawBytes, chunk.Video.Media...)
+							if len(chunk.Video.Media)%2 != 0 {
+								rawBytes = append(rawBytes, byte(0))
+							}
 						}
 						ioutil.WriteFile(destinationFilename, rawBytes, 0644)
 					default:
@@ -214,8 +319,8 @@ func main() {
 					}
 				},
 			}
-			extractVideoCommand.Flags().StringVar(&format, "format", format, "The output file format (can be one of: raw, mp4)")
-			extractCommand.AddCommand(extractVideoCommand)
+			exportVideoCommand.Flags().StringVar(&format, "format", format, "The output file format (can be one of: avi, raw)")
+			exportCommand.AddCommand(exportVideoCommand)
 		}
 	}
 

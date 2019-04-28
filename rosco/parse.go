@@ -135,6 +135,7 @@ func ParseReader(reader io.Reader, headerOnly bool) (*FileInfo, error) {
 				return nil, fmt.Errorf("Could not parse the metadata: %v", err)
 			}
 
+			originalMediaLength := mediaLength
 			for mediaLength%8 != 0 {
 				mediaLength++
 			}
@@ -144,7 +145,7 @@ func ParseReader(reader io.Reader, headerOnly bool) (*FileInfo, error) {
 			if err != nil {
 				return nil, fmt.Errorf("Could not read the media buffer: %v", err)
 			}
-			chunk.Video.Media = buffer
+			chunk.Video.Media = buffer[0:originalMediaLength]
 		case "wb":
 			chunk.Audio = new(AudioChunk)
 
