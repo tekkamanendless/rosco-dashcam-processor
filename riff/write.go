@@ -48,8 +48,16 @@ func Write(writer io.Writer, file *AVIFile) error {
 	// "movi" list
 	{
 		movieListBuffer := new(bytes.Buffer)
+		indexes := []AVIChunkIndex{}
 		for _, stream := range file.Streams {
 			for _, chunk := range stream.Chunks {
+				chunkIndex := AVIChunkIndex{
+					ID:          chunk.ID,
+					Flags:       0,
+					ChunkOffset: int32(4 + movieListBuffer.Len()),
+					ChunkLength: int32(len(chunk.Data)),
+				}
+
 				err = writeChunk(movieListBuffer, chunk.ID, chunk.Data)
 				if err != nil {
 					return err
@@ -60,11 +68,46 @@ func Write(writer io.Writer, file *AVIFile) error {
 						return err
 					}
 				}
+
+				if chunk.IsKeyframe {
+					chunkIndex.Flags = AVIChunkIndexKeyframe
+				}
+				indexes = append(indexes, chunkIndex)
 			}
 		}
 		err = writeList(buffer, "movi", movieListBuffer.Bytes())
 		if err != nil {
 			return err
+		}
+		if file.AVIHeader.Flags&AVIFlagHasIndex == AVIFlagHasIndex {
+			indexChunks := new(bytes.Buffer)
+			for _, index := range indexes {
+				codeType := []byte(index.ID)
+				if len(codeType) != 4 {
+					return fmt.Errorf("Incorrect chunk identifier: %q", index.ID)
+				}
+				codeType = codeType[0:4]
+				err = binary.Write(indexChunks, binary.LittleEndian, codeType)
+				if err != nil {
+					return err
+				}
+				err = binary.Write(indexChunks, binary.LittleEndian, index.Flags)
+				if err != nil {
+					return err
+				}
+				err = binary.Write(indexChunks, binary.LittleEndian, index.ChunkOffset)
+				if err != nil {
+					return err
+				}
+				err = binary.Write(indexChunks, binary.LittleEndian, index.ChunkLength)
+				if err != nil {
+					return err
+				}
+			}
+			err = writeChunk(buffer, "idx1", indexChunks.Bytes())
+			if err != nil {
+				return err
+			}
 		}
 	}
 

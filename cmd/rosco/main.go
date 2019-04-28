@@ -260,8 +260,9 @@ func main() {
 								continue
 							}
 							streamChunk := riff.Chunk{
-								ID:   "00dc",
-								Data: chunk.Video.Media,
+								ID:         "00dc",
+								Data:       chunk.Video.Media,
+								IsKeyframe: strings.HasSuffix(chunk.ID, "0"),
 							}
 							stream.Chunks = append(stream.Chunks, streamChunk)
 						}
@@ -271,7 +272,7 @@ func main() {
 								MicroSecPerFrame:    33333,
 								MaxBytesPerSec:      0,
 								PaddingGranularity:  0,
-								Flags:               riff.AVIFlagIsInterleaved | riff.AVIFlagTrustCKType, // TODO: Add the index.
+								Flags:               riff.AVIFlagIsInterleaved | riff.AVIFlagTrustCKType | riff.AVIFlagHasIndex,
 								TotalFrames:         int32(len(stream.Chunks)),
 								InitialFrames:       0,
 								Streams:             1,

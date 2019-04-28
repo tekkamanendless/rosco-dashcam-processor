@@ -103,6 +103,22 @@ func (h *AVIStreamFormat) Bytes() []byte {
 
 // Chunk represents a chunk.
 type Chunk struct {
-	ID   string
-	Data []byte
+	ID         string
+	Data       []byte
+	IsKeyframe bool
 }
+
+// AVIChunkIndex describes a chunk index.
+type AVIChunkIndex struct {
+	ID          string
+	Flags       int32
+	ChunkOffset int32
+	ChunkLength int32
+}
+
+// These are the AVI chunk index flags.
+const (
+	AVIChunkIndexList     int32 = 0x00000001
+	AVIChunkIndexKeyframe       = 0x00000010
+	AVIChunkIndexNoTime         = 0x00000100
+)
