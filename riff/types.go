@@ -7,8 +7,8 @@ import (
 
 // AVIFile is a RIFF AVI file.
 type AVIFile struct {
-	AVIHeader AVIHeader
-	Streams   []Stream
+	Header  AVIHeader
+	Streams []Stream
 }
 
 // AVIHeader is the AVI header.
@@ -48,9 +48,10 @@ func (h *AVIHeader) Bytes() []byte {
 
 // Stream represents a stream.
 type Stream struct {
-	Header AVIStreamHeader
-	Format AVIStreamFormat
-	Chunks []Chunk
+	Header      AVIStreamHeader
+	AudioFormat AVIStreamAudioFormat // Used when the type is "auds".
+	VideoFormat AVIStreamVideoFormat // Used when the type is "vids".
+	Chunks      []Chunk
 }
 
 // AVIStreamHeader is the AVI stream header.
@@ -79,8 +80,26 @@ func (h *AVIStreamHeader) Bytes() []byte {
 	return buffer.Bytes()
 }
 
-// AVIStreamFormat is the AVI stream format.
-type AVIStreamFormat struct {
+// AVIStreamAudioFormat is the AVI stream format.
+type AVIStreamAudioFormat struct {
+	FormatTag      int16
+	Channels       int16
+	SamplesPerSec  int32
+	AvgBytesPerSec int32
+	BlockAlign     int16
+	BitsPerSample  int16
+	Size           int16
+}
+
+// Bytes returns the encoded version of the format.
+func (h *AVIStreamAudioFormat) Bytes() []byte {
+	buffer := new(bytes.Buffer)
+	binary.Write(buffer, binary.LittleEndian, *h)
+	return buffer.Bytes()
+}
+
+// AVIStreamVideoFormat is the AVI stream format.
+type AVIStreamVideoFormat struct {
 	Size          int32
 	Width         int32
 	Height        int32
@@ -95,7 +114,7 @@ type AVIStreamFormat struct {
 }
 
 // Bytes returns the encoded version of the format.
-func (h *AVIStreamFormat) Bytes() []byte {
+func (h *AVIStreamVideoFormat) Bytes() []byte {
 	buffer := new(bytes.Buffer)
 	binary.Write(buffer, binary.LittleEndian, *h)
 	return buffer.Bytes()

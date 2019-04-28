@@ -19,7 +19,7 @@ func Write(writer io.Writer, file *AVIFile) error {
 	{
 		headerListBuffer := new(bytes.Buffer)
 		{
-			err = writeChunk(headerListBuffer, "avih", file.AVIHeader.Bytes())
+			err = writeChunk(headerListBuffer, "avih", file.Header.Bytes())
 			if err != nil {
 				return err
 			}
@@ -30,7 +30,7 @@ func Write(writer io.Writer, file *AVIFile) error {
 			if err != nil {
 				return err
 			}
-			err = writeChunk(streamListChunks, "strf", stream.Format.Bytes())
+			err = writeChunk(streamListChunks, "strf", stream.VideoFormat.Bytes())
 			if err != nil {
 				return err
 			}
@@ -79,7 +79,7 @@ func Write(writer io.Writer, file *AVIFile) error {
 		if err != nil {
 			return err
 		}
-		if file.AVIHeader.Flags&AVIFlagHasIndex == AVIFlagHasIndex {
+		if file.Header.Flags&AVIFlagHasIndex == AVIFlagHasIndex {
 			indexChunks := new(bytes.Buffer)
 			for _, index := range indexes {
 				codeType := []byte(index.ID)
