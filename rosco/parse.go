@@ -60,7 +60,7 @@ func ParseReader(reader io.Reader, headerOnly bool) (*FileInfo, error) {
 		}
 		chunk.Type = string(buffer)
 
-		logger.Debugf("Chunk: %s / %s", chunk.ID, chunk.Type)
+		logger.Debugf("Chunk: %s / %s [%x]", chunk.ID, chunk.Type, []byte(chunk.ID + chunk.Type))
 
 		switch chunk.Type {
 		case "dc":
@@ -154,12 +154,14 @@ func ParseReader(reader io.Reader, headerOnly bool) (*FileInfo, error) {
 			if err != nil {
 				return nil, fmt.Errorf("Could not read the audio channel length for chunk %d: %v", i, err)
 			}
+			logger.Debugf("Audio channel length: %d", audioChannelLength)
 
 			var firstAudioChannelLength int16
 			err = binary.Read(reader, binary.LittleEndian, &firstAudioChannelLength)
 			if err != nil {
 				return nil, fmt.Errorf("Could not read the first audio channel length for chunk %d: %v", i, err)
 			}
+			logger.Debugf("First audio channel length: %d", firstAudioChannelLength)
 
 			err = binary.Read(reader, binary.LittleEndian, &chunk.Audio.Timestamp)
 			if err != nil {
@@ -176,6 +178,7 @@ func ParseReader(reader io.Reader, headerOnly bool) (*FileInfo, error) {
 			if remainingLength != audioChannelLength*2 {
 				return nil, fmt.Errorf("Could not figure out the proper remaining media length for chunk %d: got %d, expected %d", i, remainingLength, audioChannelLength*2)
 			}
+			logger.Debugf("Remaining length: %d", remainingLength)
 
 			buffer = make([]byte, audioChannelLength)
 			_, err = io.ReadFull(reader, buffer)
