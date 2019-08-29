@@ -1,13 +1,31 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"os"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func main() {
-	filename := os.Args[1]
+	byteLimit := flag.Int("byte-limit", 0, "The number of bytes to read.  If this is 0, then the whole file will be read.")
+
+	flag.Parse()
+
+	if len(flag.Args()) == 0 {
+		fmt.Printf("Missing filename.\n")
+		os.Exit(1)
+	}
+	if len(flag.Args()) > 1 {
+		fmt.Printf("Too many arguments.\n")
+		os.Exit(1)
+	}
+	filename := flag.Args()[0]
+
+	log.Infof("Byte limit: %d", *byteLimit)
+	log.Infof("Filename: %s", filename)
 
 	handle, err := os.Open(filename)
 	if err != nil {
@@ -20,7 +38,9 @@ func main() {
 	for line := 0; line < 2; line++ {
 		handle.Seek(0, 0)
 		buffer := make([]byte, bufferSize)
-		for {
+		totalBytesRead := 0
+		done := false
+		for !done {
 			bytesRead, err := handle.Read(buffer)
 			if err == io.EOF {
 				break
@@ -39,6 +59,13 @@ func main() {
 					}
 				case 1:
 					fmt.Printf("%02x", currentByte)
+				}
+
+				totalBytesRead++
+				if *byteLimit > 0 && totalBytesRead >= *byteLimit {
+					log.Infof("Reached the byte limit of %d; ending early.", *byteLimit)
+					done = true
+					break
 				}
 			}
 		}

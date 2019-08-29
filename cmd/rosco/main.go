@@ -289,7 +289,7 @@ With this, you can quickly export all of the videos from a particular directory 
 					}
 				},
 			}
-			exportDvproCommand.Flags().StringVar(&outputDirectory, "output-directory", outputDirectory, "The output direcotyr; if not specified, the new files will be created next to the NVR files")
+			exportDvproCommand.Flags().StringVar(&outputDirectory, "output-directory", outputDirectory, "The output directory; if not specified, the new files will be created next to the NVR files")
 			exportCommand.AddCommand(exportDvproCommand)
 		}
 	}
