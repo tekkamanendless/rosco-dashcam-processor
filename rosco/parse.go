@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/hashicorp/go-version"
 )
 
 // HeaderSize is the size of the file header.
@@ -39,6 +41,35 @@ func ParseReader(reader io.Reader, headerOnly bool) (*FileInfo, error) {
 		return fileInfo, nil
 	}
 
+	// This is the version at which we will assume that the audio format changed.
+	// Note that I do not have any proof of this other than the following two
+	// data points:
+	//    v1.0.0: Audio is encoded as separate left and right channels; length is wrong.
+	//    v1.6.5: Audio is encoded as a single mono channel; length is correct.
+	Version1Point6 := version.Must(version.NewVersion("v1.6.0"))
+
+	var fileVersion *version.Version
+	if fileInfo.Metadata != nil {
+		versionString := ""
+		for _, entry := range fileInfo.Metadata.Entries {
+			if entry.Name == "appVersion" {
+				value, okay := entry.Value.(string)
+				if !okay {
+					logger.Warnf("appVersion is not a string: %v", entry.Value)
+				} else {
+					versionString = value
+				}
+			}
+		}
+		if versionString != "" {
+			fileVersion, err = version.NewVersion(versionString)
+			if err != nil {
+				logger.Warnf("Could not parse version string %q: %v", versionString, err)
+			}
+		}
+	}
+	logger.Infof("File version: %v", fileVersion)
+
 	for i := 0; ; i++ {
 		buffer = make([]byte, 2)
 		_, err = io.ReadFull(reader, buffer)
@@ -60,7 +91,7 @@ func ParseReader(reader io.Reader, headerOnly bool) (*FileInfo, error) {
 		}
 		chunk.Type = string(buffer)
 
-		logger.Debugf("Chunk: %s / %s [%x]", chunk.ID, chunk.Type, []byte(chunk.ID + chunk.Type))
+		logger.Debugf("Chunk: %s / %s [%x]", chunk.ID, chunk.Type, []byte(chunk.ID+chunk.Type))
 
 		switch chunk.Type {
 		case "dc":
@@ -187,12 +218,14 @@ func ParseReader(reader io.Reader, headerOnly bool) (*FileInfo, error) {
 			}
 			chunk.Audio.Channels = append(chunk.Audio.Channels, buffer)
 
-			buffer = make([]byte, audioChannelLength)
-			_, err = io.ReadFull(reader, buffer)
-			if err != nil {
-				return nil, fmt.Errorf("Could not read the media buffer: %v", err)
+			if fileVersion != nil && fileVersion.LessThan(Version1Point6) {
+				buffer = make([]byte, audioChannelLength)
+				_, err = io.ReadFull(reader, buffer)
+				if err != nil {
+					return nil, fmt.Errorf("Could not read the media buffer: %v", err)
+				}
+				chunk.Audio.Channels = append(chunk.Audio.Channels, buffer)
 			}
-			chunk.Audio.Channels = append(chunk.Audio.Channels, buffer)
 		default:
 			return nil, fmt.Errorf("Unknown chunk type for chunk %d: %v", i, chunk.Type)
 		}
