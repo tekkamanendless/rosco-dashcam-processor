@@ -28,7 +28,22 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 
 	audioStreamID := streamID
 	if len(audioStreamID) == 1 {
-		audioStreamID += "7"
+		for _, id := range info.StreamIDs() {
+			if strings.HasPrefix(id, streamID) {
+				audioPresent := false
+				for _, chunk := range info.ChunksForStreamID(id) {
+					if chunk.Audio != nil {
+						audioPresent = true
+						break
+					}
+
+				}
+				if audioPresent {
+					audioStreamID = id
+					break
+				}
+			}
+		}
 	}
 	audioData, err := MakePCM(info, audioStreamID)
 	if err != nil {

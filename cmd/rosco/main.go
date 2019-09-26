@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
@@ -72,6 +73,79 @@ For a more aggressive output, use the --dump flag.
 	}
 
 	{
+		var byteLimit int
+		var debugCommand = &cobra.Command{
+			Use:   "debug <filename> <stream> <chunk>",
+			Short: "Show debug information from the given file",
+			Long: `
+The output here isn't particularly pretty, but it should be enough for you to do whatever you need to do with the files.
+
+For a more aggressive output, use the --dump flag.
+`,
+			Args: cobra.MinimumNArgs(1),
+			Run: func(cmd *cobra.Command, args []string) {
+				if len(args) != 3 {
+					cmd.Help()
+					os.Exit(1)
+				}
+				filename := args[0]
+				streamID := args[1]
+				chunkID := args[2]
+
+				fmt.Printf("File: %s\n", filename)
+				info, err := parseFilename(filename, false /*headerOnly*/)
+				if err != nil {
+					panic(fmt.Sprintf("Error: %v\n", err))
+				}
+
+				fmt.Printf("Stream: %s\n", streamID)
+				chunks := info.ChunksForStreamID(streamID)
+				fmt.Printf("Chunks: %d\n", len(chunks))
+
+				chunkIndex := 0
+				{
+					value, err := strconv.ParseInt(chunkID, 10, 64)
+					if err != nil {
+						panic(err)
+					}
+					chunkIndex = int(value)
+				}
+				fmt.Printf("Chunk index: %d\n", chunkIndex)
+				if chunkIndex < 0 || chunkIndex >= len(chunks) {
+					panic(fmt.Sprintf("Invalid chunk index: %d", chunkIndex))
+				}
+
+				chunk := chunks[chunkIndex]
+				fmt.Printf("ID: %s\n", chunk.ID)
+				fmt.Printf("Type: %s\n", chunk.Type)
+				if chunk.Audio != nil {
+					fmt.Printf("This is an audio chunk.\n")
+					fmt.Printf("Timestamp: %v\n", chunk.Audio.Timestamp)
+					fmt.Printf("Unknown1: %v\n", chunk.Audio.Unknown1)
+					fmt.Printf("Channels: (%d)\n", len(chunk.Audio.Channels))
+					for i, data := range chunk.Audio.Channels {
+						fmt.Printf("Channel %d: (%d)\n", i, len(data))
+						printBinaryData(data, byteLimit)
+					}
+				}
+				if chunk.Video != nil {
+					fmt.Printf("This is a video chunk.\n")
+					fmt.Printf("Codec: %v\n", chunk.Video.Codec)
+					fmt.Printf("Unknown1: %v\n", chunk.Video.Unknown1)
+					fmt.Printf("Timestamp: %v\n", chunk.Video.Timestamp)
+					fmt.Printf("Unknown2: %v\n", chunk.Video.Unknown2)
+					printMetadata(chunk.Video.Metadata)
+					fmt.Printf("Media: (%d)\n", len(chunk.Video.Media))
+					printBinaryData(chunk.Video.Media, byteLimit)
+				}
+				//fmt.Printf("Length: %d\n", len(chunk))
+			},
+		}
+		debugCommand.Flags().IntVar(&byteLimit, "byte-limit", 120, "The number of bytes to print (when printing raw data); use 0 for no limit")
+		rootCommand.AddCommand(debugCommand)
+	}
+
+	{
 		var exportCommand = &cobra.Command{
 			Use:   "export",
 			Short: "Export a stream from a file",
@@ -99,15 +173,29 @@ You may also choose the output format.
 					streamID := args[1]
 					destinationFilename := args[2]
 
-					// Audio streams appear to be "x7".
-					if len(streamID) == 1 {
-						streamID += "7"
-					}
-
 					info, err := parseFilename(inputFile, false)
 					if err != nil {
 						fmt.Printf("Error: %v\n", err)
 						os.Exit(1)
+					}
+
+					if len(streamID) == 1 {
+						for _, id := range info.StreamIDs() {
+							if strings.HasPrefix(id, streamID) {
+								audioPresent := false
+								for _, chunk := range info.ChunksForStreamID(id) {
+									if chunk.Audio != nil {
+										audioPresent = true
+										break
+									}
+
+								}
+								if audioPresent {
+									streamID = id
+									break
+								}
+							}
+						}
 					}
 
 					intBuffer, err := roscoconv.MakePCM(info, streamID)
@@ -319,10 +407,33 @@ func parseFilename(filename string, headerOnly bool) (*rosco.FileInfo, error) {
 	return info, nil
 }
 
-// printFileInfo prints out the information about the file.
-func printFileInfo(info *rosco.FileInfo) {
-	fmt.Printf("Metadata: (%d)\n", len(info.Metadata.Entries))
-	for _, entry := range info.Metadata.Entries {
+func printBinaryData(buffer []byte, byteLimit int) {
+	for line := 0; line < 2; line++ {
+		for i := 0; i < len(buffer); i++ {
+			if byteLimit > 0 && i >= byteLimit {
+				break
+			}
+
+			currentByte := buffer[i]
+			switch line {
+			case 0:
+				if currentByte < ' ' || currentByte > '~' {
+					fmt.Printf("..")
+				} else {
+					fmt.Printf(" %c", currentByte)
+				}
+			case 1:
+				fmt.Printf("%02x", currentByte)
+			}
+		}
+		fmt.Printf("\n")
+	}
+}
+
+// printMetadata prints metadata.
+func printMetadata(metadata *rosco.Metadata) {
+	fmt.Printf("Metadata: (%d)\n", len(metadata.Entries))
+	for _, entry := range metadata.Entries {
 		if entry.Type == rosco.MetadataType4 {
 			fmt.Printf("   * %s:\n", entry.Name)
 			subMetadata := entry.Value.(*rosco.Metadata)
@@ -333,6 +444,11 @@ func printFileInfo(info *rosco.FileInfo) {
 			fmt.Printf("   * %s = %v\n", entry.Name, entry.Value)
 		}
 	}
+}
+
+// printFileInfo prints out the information about the file.
+func printFileInfo(info *rosco.FileInfo) {
+	printMetadata(info.Metadata)
 
 	fmt.Printf("Unknown file header data:\n")
 	spew.Dump(info.Unknown1)
