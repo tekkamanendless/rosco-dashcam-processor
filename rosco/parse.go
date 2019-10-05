@@ -210,7 +210,7 @@ func ParseReader(reader io.Reader, headerOnly bool) (*FileInfo, error) {
 			if err != nil {
 				return nil, fmt.Errorf("Could not read the media buffer: %v", err)
 			}
-			chunk.Audio.Channels = append(chunk.Audio.Channels, buffer)
+			chunk.Audio.Media = buffer
 
 			if fileVersion != nil && fileVersion.LessThan(Version1Point6) {
 				logger.Debugf("Reading another %d bytes (second channel)", audioChannelLength)
@@ -219,7 +219,7 @@ func ParseReader(reader io.Reader, headerOnly bool) (*FileInfo, error) {
 				if err != nil {
 					return nil, fmt.Errorf("Could not read the media buffer: %v", err)
 				}
-				chunk.Audio.Channels = append(chunk.Audio.Channels, buffer)
+				chunk.Audio.ExtraMedia = buffer
 			}
 		default:
 			return nil, fmt.Errorf("Unknown chunk type for chunk %d: %v", i, chunk.Type)

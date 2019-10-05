@@ -5,8 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-audio/audio"
-	"github.com/hraban/opus"
 	"github.com/nareix/joy4/codec/h264parser"
 	"github.com/tekkamanendless/rosco-dashcam-processor/riff"
 	"github.com/tekkamanendless/rosco-dashcam-processor/rosco"
@@ -152,114 +150,41 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 	file.Header.Streams++
 
 	fmt.Printf("Audio stream ID: %s\n", audioStreamID)
+	{
+		rawPCM := strings.HasSuffix(audioStreamID, "7")
 
-	if strings.HasSuffix(audioStreamID, "7") {
-		audioData, err := MakePCM(info, audioStreamID)
-		if err != nil {
-			return nil, err
-		}
-
-		audioStream := riff.Stream{
-			Header: riff.AVIStreamHeader{
-				Type:                [4]byte{'a', 'u', 'd', 's'},
-				Handler:             [4]byte{' ', ' ', ' ', ' '},
-				Scale:               1,
-				Rate:                int32(audioData.Format.SampleRate),
-				SuggestedBufferSize: 65536,
-			},
-			AudioFormat: riff.AVIStreamAudioFormat{
-				FormatTag:      0x0007, // mu-law
-				Channels:       int16(audioData.Format.NumChannels),
-				SamplesPerSec:  int32(audioData.Format.SampleRate),
-				AvgBytesPerSec: int32(audioData.Format.SampleRate * audioData.Format.NumChannels / (audioData.SourceBitDepth / 8)),
-				BlockAlign:     int16(audioData.SourceBitDepth / 8 * audioData.Format.NumChannels),
-				BitsPerSample:  int16(audioData.SourceBitDepth * audioData.Format.NumChannels),
-			},
-		}
-
-		var rawBytes []byte
-		rawBytes, err = MakeRawAudio(audioData)
-		if err != nil {
-			return nil, err
-		}
-
-		// Break up the audio into smaller chunks.
-		// Increments for 1-second chunks.
-		timestampIncrement := uint32(1000000)
-		offsetIncrement := audioData.Format.SampleRate * audioData.Format.NumChannels * (audioData.SourceBitDepth / 8)
-		// Now, break up those increments into smaller increments.
-		// The smaller the increment, the better the AVI file ends up working out.
-		// From my experiments, 1-second intervals are too large.
-		timestampIncrement /= 8
-		offsetIncrement /= 8
-		// Start the audio with the video using the video's first timestamp.
-		currentTimestamp := videoStream.Chunks[0].Timestamp
-		for offset := 0; offset < len(rawBytes); offset += offsetIncrement {
-			endOffset := offset + offsetIncrement
-			if endOffset > len(rawBytes) {
-				endOffset = len(rawBytes)
-			}
-			streamChunk := riff.Chunk{
-				ID:        "01wb",
-				Data:      rawBytes[offset:endOffset],
-				Timestamp: currentTimestamp,
-			}
-			audioStream.Chunks = append(audioStream.Chunks, streamChunk)
-			currentTimestamp += timestampIncrement
-		}
-
-		file.Streams = append(file.Streams, audioStream)
-		file.Header.Streams++
-	} else if strings.HasSuffix(audioStreamID, "9") {
-		sampleRate := 8000
-		channelCount := 1
-		sourceBitDepth := 8
-
-		audioStream := riff.Stream{
-			Header: riff.AVIStreamHeader{
-				Type:                [4]byte{'a', 'u', 'd', 's'},
-				Handler:             [4]byte{' ', ' ', ' ', ' '},
-				Scale:               1,
-				Rate:                int32(sampleRate),
-				SuggestedBufferSize: 65536,
-			},
-			AudioFormat: riff.AVIStreamAudioFormat{
-				FormatTag:      0x0007, // mu-law
-				Channels:       int16(channelCount),
-				SamplesPerSec:  int32(sampleRate),
-				AvgBytesPerSec: int32(sampleRate * channelCount / (sourceBitDepth / 8)),
-				BlockAlign:     int16(sourceBitDepth / 8 * channelCount),
-				BitsPerSample:  int16(sourceBitDepth * channelCount),
-			},
-		}
+		audioStream := riff.Stream{}
 
 		chunks := info.ChunksForStreamID(audioStreamID)
-		for _, chunk := range chunks {
-			decoder, err := opus.NewDecoder(sampleRate, channelCount)
+		for chunkIndex, chunk := range chunks {
+			intBuffer, err := MakePCM(chunk.Audio.Media, rawPCM)
 			if err != nil {
 				return nil, err
 			}
 
-			frameSizeMs := 60 // if you don't know, go with 60 ms.
-			frameSize := channelCount * frameSizeMs * sampleRate / 1000
-			pcm := make([]int16, int(frameSize))
-			pcmSize, err := decoder.Decode(chunk.Audio.Channels[0], pcm)
-			if err != nil {
-				return nil, err
+			if chunkIndex == 0 {
+				audioStream.Header = riff.AVIStreamHeader{
+					Type:                [4]byte{'a', 'u', 'd', 's'},
+					Handler:             [4]byte{' ', ' ', ' ', ' '},
+					Scale:               1,
+					Rate:                int32(intBuffer.Format.SampleRate),
+					SuggestedBufferSize: 65536,
+				}
+				audioStream.AudioFormat = riff.AVIStreamAudioFormat{
+					FormatTag:      0x0001, // PCM
+					Channels:       int16(intBuffer.Format.NumChannels),
+					SamplesPerSec:  int32(intBuffer.Format.SampleRate),
+					AvgBytesPerSec: int32(intBuffer.Format.SampleRate * intBuffer.Format.NumChannels / (intBuffer.SourceBitDepth / 8)),
+					BlockAlign:     int16(intBuffer.SourceBitDepth / 8 * intBuffer.Format.NumChannels),
+					BitsPerSample:  int16(intBuffer.SourceBitDepth * intBuffer.Format.NumChannels),
+				}
+
+				if rawPCM {
+					audioStream.AudioFormat.FormatTag = 0x0007 // mu-law
+				}
 			}
 
-			intBuffer := &audio.IntBuffer{
-				Format: &audio.Format{
-					NumChannels: channelCount,
-					SampleRate:  sampleRate,
-				},
-				SourceBitDepth: sourceBitDepth,
-			}
-			for d := 0; d < pcmSize; d++ {
-				intBuffer.Data = append(intBuffer.Data, int(pcm[d]))
-			}
-			var rawBytes []byte
-			rawBytes, err = MakeRawAudio(intBuffer)
+			rawBytes, err := MakeRawAudio(intBuffer)
 			if err != nil {
 				return nil, err
 			}

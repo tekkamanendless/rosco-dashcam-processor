@@ -30,9 +30,10 @@ type Chunk struct {
 
 // AudioChunk is an audio chunk.
 type AudioChunk struct {
-	Timestamp uint32
-	Unknown1  []byte
-	Channels  [][]byte
+	Timestamp  uint32
+	Unknown1   []byte
+	Media      []byte
+	ExtraMedia []byte
 }
 
 // VideoChunk is a video chunk.

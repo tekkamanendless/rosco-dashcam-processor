@@ -6,56 +6,50 @@ import (
 	"fmt"
 
 	"github.com/go-audio/audio"
-	"github.com/tekkamanendless/rosco-dashcam-processor/rosco"
+	"github.com/hraban/opus"
 )
 
-// MakePCM creates an `audio.IntBuffer` instance based on this `rosco.FileInfo` one.
+// MakePCM creates an `audio.IntBuffer` instance based on the raw data.
 //
-// Stream ID is the ID of the stream to export.
-func MakePCM(info *rosco.FileInfo, streamID string) (*audio.IntBuffer, error) {
-	chunks := info.ChunksForStreamID(streamID)
-
-	channelCount := 0
-	for _, chunk := range chunks {
-		if chunk.Audio == nil {
-			continue
-		}
-		if len(chunk.Audio.Channels) > channelCount {
-			channelCount = len(chunk.Audio.Channels)
-		}
-	}
+// If `rawPCM` is true, then the data will be interpreted as raw PCM data.
+// Otherwise, it will be interpreted as Opus data.
+func MakePCM(data []byte, rawPCM bool) (*audio.IntBuffer, error) {
+	sampleRate := 8000
+	channelCount := 1
 
 	intBuffer := &audio.IntBuffer{
 		Format: &audio.Format{
 			NumChannels: channelCount,
-			SampleRate:  8000,
+			SampleRate:  sampleRate,
 		},
-		SourceBitDepth: 8,
 	}
 
-	for _, chunk := range chunks {
-		if chunk.Audio == nil {
-			continue
+	if rawPCM {
+		intBuffer.SourceBitDepth = 8
+		intBuffer.Data = make([]int, 0, len(data))
+
+		for _, value := range data {
+			intBuffer.Data = append(intBuffer.Data, int(value))
 		}
-		if len(chunk.Audio.Channels) != channelCount {
-			panic("Wrong channel count")
+	} else {
+		intBuffer.SourceBitDepth = 16
+
+		decoder, err := opus.NewDecoder(sampleRate, channelCount)
+		if err != nil {
+			return nil, err
 		}
 
-		dataLength := 0
-		for c, channelData := range chunk.Audio.Channels {
-			if c == 0 {
-				dataLength = len(channelData)
-			} else {
-				if len(channelData) != dataLength {
-					panic("Wrong data length")
-				}
-			}
+		frameSizeMs := 60 // if you don't know, go with 60 ms.
+		frameSize := channelCount * frameSizeMs * sampleRate / 1000
+		pcm := make([]int16, int(frameSize))
+		pcmSize, err := decoder.Decode(data, pcm)
+		if err != nil {
+			return nil, err
 		}
 
-		for d := 0; d < dataLength; d++ {
-			for c := range chunk.Audio.Channels {
-				intBuffer.Data = append(intBuffer.Data, int(chunk.Audio.Channels[c][d]))
-			}
+		intBuffer.Data = make([]int, 0, pcmSize)
+		for _, value := range pcm {
+			intBuffer.Data = append(intBuffer.Data, int(value))
 		}
 	}
 

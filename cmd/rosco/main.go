@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/go-audio/audio"
 	"github.com/go-audio/wav"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -122,10 +123,11 @@ For a more aggressive output, use the --dump flag.
 					fmt.Printf("This is an audio chunk.\n")
 					fmt.Printf("Timestamp: %v\n", chunk.Audio.Timestamp)
 					fmt.Printf("Unknown1: %v\n", chunk.Audio.Unknown1)
-					fmt.Printf("Channels: (%d)\n", len(chunk.Audio.Channels))
-					for i, data := range chunk.Audio.Channels {
-						fmt.Printf("Channel %d: (%d)\n", i, len(data))
-						printBinaryData(data, byteLimit)
+					fmt.Printf("Media: (%d)\n", len(chunk.Audio.Media))
+					printBinaryData(chunk.Audio.Media, byteLimit)
+					if len(chunk.Audio.ExtraMedia) > 0 {
+						fmt.Printf("Extra Media: (%d)\n", len(chunk.Audio.ExtraMedia))
+						printBinaryData(chunk.Audio.ExtraMedia, byteLimit)
 					}
 				}
 				if chunk.Video != nil {
@@ -198,10 +200,35 @@ You may also choose the output format.
 						}
 					}
 
-					intBuffer, err := roscoconv.MakePCM(info, streamID)
-					if err != nil {
-						fmt.Printf("Error: %v\n", err)
+					rawPCM := strings.HasSuffix(streamID, "7")
+
+					var intBuffers []*audio.IntBuffer
+					for _, chunk := range info.ChunksForStreamID(streamID) {
+						if chunk.Audio == nil {
+							continue
+						}
+						intBuffer, err := roscoconv.MakePCM(chunk.Audio.Media, rawPCM)
+						if err != nil {
+							fmt.Printf("Error: %v\n", err)
+							os.Exit(1)
+						}
+						intBuffers = append(intBuffers, intBuffer)
+					}
+
+					if len(intBuffers) == 0 {
+						fmt.Printf("Could not find any audio data.\n")
 						os.Exit(1)
+					}
+
+					intBuffer := &audio.IntBuffer{
+						Format: &audio.Format{
+							NumChannels: intBuffers[0].Format.NumChannels,
+							SampleRate:  intBuffers[0].Format.SampleRate,
+						},
+						SourceBitDepth: intBuffers[0].SourceBitDepth,
+					}
+					for _, b := range intBuffers {
+						intBuffer.Data = append(intBuffer.Data, b.Data...)
 					}
 
 					fmt.Printf("Exporting audio data from stream %s...\n", streamID)
@@ -226,8 +253,13 @@ You may also choose the output format.
 							os.Exit(1)
 						}
 						defer out.Close()
-						wavAudioFormat := 0x0007 // mu-law
+
+						wavAudioFormat := 0x0001 // PCM
+						if rawPCM {
+							wavAudioFormat = 0x0007 // mu-law
+						}
 						wavEncoder := wav.NewEncoder(out, intBuffer.Format.SampleRate, intBuffer.SourceBitDepth, intBuffer.Format.NumChannels, wavAudioFormat)
+						fmt.Printf("WAV encoder: Sample rate: %d, Bit Depth: %d, Channels: %d, Format: 0x%x\n", intBuffer.Format.SampleRate, intBuffer.SourceBitDepth, intBuffer.Format.NumChannels, wavAudioFormat)
 						wavEncoder.Write(intBuffer)
 						wavEncoder.Close()
 					default:
@@ -466,9 +498,7 @@ func printFileInfo(info *rosco.FileInfo) {
 		videoDataLength := 0
 		for _, chunk := range chunks {
 			if chunk.Audio != nil {
-				for _, channelData := range chunk.Audio.Channels {
-					audioDataLength += len(channelData)
-				}
+				audioDataLength += len(chunk.Audio.Media)
 			}
 			if chunk.Video != nil {
 				videoDataLength += len(chunk.Video.Media)
