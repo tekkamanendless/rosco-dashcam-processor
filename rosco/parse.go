@@ -205,12 +205,6 @@ func ParseReader(reader io.Reader, headerOnly bool) (*FileInfo, error) {
 				return nil, fmt.Errorf("Could not read unknown1 for chunk %d: %v", i, err)
 			}
 
-			remainingLength := audioChannelLength + (firstAudioChannelLength - (4 + 4))
-			if remainingLength != audioChannelLength*2 {
-				return nil, fmt.Errorf("Could not figure out the proper remaining media length for chunk %d: got %d, expected %d", i, remainingLength, audioChannelLength*2)
-			}
-			logger.Debugf("Remaining length: %d", remainingLength)
-
 			buffer = make([]byte, audioChannelLength)
 			_, err = io.ReadFull(reader, buffer)
 			if err != nil {
@@ -219,6 +213,7 @@ func ParseReader(reader io.Reader, headerOnly bool) (*FileInfo, error) {
 			chunk.Audio.Channels = append(chunk.Audio.Channels, buffer)
 
 			if fileVersion != nil && fileVersion.LessThan(Version1Point6) {
+				logger.Debugf("Reading another %d bytes (second channel)", audioChannelLength)
 				buffer = make([]byte, audioChannelLength)
 				_, err = io.ReadFull(reader, buffer)
 				if err != nil {
