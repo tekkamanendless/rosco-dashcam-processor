@@ -72,6 +72,9 @@ func MakeRawAudio(intBuffer *audio.IntBuffer) ([]byte, error) {
 		case 1:
 			newInt := int8(currentInt)
 			binary.Write(buffer, binary.LittleEndian, newInt)
+		case 2:
+			newInt := int16(currentInt)
+			binary.Write(buffer, binary.LittleEndian, newInt)
 		default:
 			return nil, fmt.Errorf("Unsupported bit depth: %d", intBuffer.SourceBitDepth)
 		}

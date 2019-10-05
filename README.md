@@ -14,6 +14,11 @@ But that's why this tool is here!
 
 For more information on the file format, see [here](README_FORMAT.md)
 
+## Requirements
+
+* `libopus-dev`
+* `libopusfile-dev`
+
 ## Command Line
 ### Download
 If you want to just use the `rosco` binary, you can get it using:
