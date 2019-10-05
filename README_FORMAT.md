@@ -24,7 +24,7 @@ Video streams are encoded as h.264 packets.
 
 1. (2 bytes) Stream identifier (two ASCII digits)
    1. (1 byte) Actual stream identifier (`0` for the first stream, `1` for the second stream, and so on)
-   1. (1 byte) Substream identifier (`0` for key frames, `1` for deltas, `7` for audio)
+   1. (1 byte) Substream identifier (`0` for key frames, `1` for deltas, `7` for raw PCM audio, `9` for Opus-encoded audio)
 1. (2 bytes) Stream type; either "dc" or "wb"
 1. If stream type is "dc" (then this is a video stream):
    1. (4 bytes) Encoding; always "H264"
@@ -42,7 +42,7 @@ Video streams are encoded as h.264 packets.
    1. (4 bytes) Timestamp (included in that second length) (appears to be in 1/1000000 seconds)
    1. (4 bytes) ??? (always zero) (included in that second length)
    1. (see above) Audio channel
-   1. (see above) Audio channel
+   1. [old versions only] (see above) Audio channel (this always seemed to be an exact copy of the actual audio channel)
 
 ## Metadata
 Metadata is used to store arbitrary data.
