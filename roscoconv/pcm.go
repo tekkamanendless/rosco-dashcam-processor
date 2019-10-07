@@ -18,25 +18,35 @@ var globalDecoder *opus.Decoder
 // If `rawPCM` is true, then the data will be interpreted as raw PCM data.
 // Otherwise, it will be interpreted as Opus data.
 func MakePCM(data []byte, rawPCM bool) (*audio.IntBuffer, error) {
-	sampleRate := 8000
-	channelCount := 1
-
-	intBuffer := &audio.IntBuffer{
-		Format: &audio.Format{
-			NumChannels: channelCount,
-			SampleRate:  sampleRate,
-		},
-	}
+	var intBuffer *audio.IntBuffer
 
 	if rawPCM {
-		intBuffer.SourceBitDepth = 8
-		intBuffer.Data = make([]int, 0, len(data))
+		sampleRate := 8000
+		channelCount := 1
+
+		intBuffer = &audio.IntBuffer{
+			Format: &audio.Format{
+				NumChannels: channelCount,
+				SampleRate:  sampleRate,
+			},
+			SourceBitDepth: 8,
+			Data:           make([]int, 0, len(data)),
+		}
 
 		for _, value := range data {
 			intBuffer.Data = append(intBuffer.Data, int(value))
 		}
 	} else {
-		intBuffer.SourceBitDepth = 16
+		sampleRate := 48000
+		channelCount := 1
+
+		intBuffer = &audio.IntBuffer{
+			Format: &audio.Format{
+				NumChannels: channelCount,
+				SampleRate:  sampleRate,
+			},
+			SourceBitDepth: 16,
+		}
 
 		var decoder *opus.Decoder
 		if globalDecoder == nil {
