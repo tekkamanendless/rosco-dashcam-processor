@@ -9,6 +9,10 @@ import (
 	"github.com/hraban/opus"
 )
 
+// globalDecoder is the Opus decoder that we'll be using everywhere.
+// For some reason, Opus likes to have all of its packets decoded by the same instance.
+var globalDecoder *opus.Decoder
+
 // MakePCM creates an `audio.IntBuffer` instance based on the raw data.
 //
 // If `rawPCM` is true, then the data will be interpreted as raw PCM data.
@@ -34,9 +38,16 @@ func MakePCM(data []byte, rawPCM bool) (*audio.IntBuffer, error) {
 	} else {
 		intBuffer.SourceBitDepth = 16
 
-		decoder, err := opus.NewDecoder(sampleRate, channelCount)
-		if err != nil {
-			return nil, err
+		var decoder *opus.Decoder
+		if globalDecoder == nil {
+			var err error
+			decoder, err = opus.NewDecoder(sampleRate, channelCount)
+			if err != nil {
+				return nil, err
+			}
+			globalDecoder = decoder
+		} else {
+			decoder = globalDecoder
 		}
 
 		frameSizeMs := 60 // if you don't know, go with 60 ms.
