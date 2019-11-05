@@ -6,9 +6,7 @@ require (
 	github.com/go-audio/wav v1.0.0
 	github.com/hashicorp/go-version v1.2.0
 	github.com/hraban/opus v0.0.0-20180426093920-0f2e0b4fc6cd
-	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/nareix/joy4 v0.0.0-20181022032202-3ddbc8f9d431
 	github.com/sirupsen/logrus v1.4.1
-	github.com/spf13/cobra v0.0.3
-	github.com/spf13/pflag v1.0.3 // indirect
+	github.com/spf13/cobra v0.0.5
 )
