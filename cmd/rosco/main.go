@@ -30,6 +30,7 @@ This tool processes Rosco dashcam files (typically with the extension ".nvr").
 `,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			if debugValue {
+				logrus.SetLevel(logrus.DebugLevel)
 				rosco.SetLogLevel(logrus.DebugLevel)
 			}
 		},

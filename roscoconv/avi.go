@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/nareix/joy4/codec/h264parser"
+	"github.com/sirupsen/logrus"
 	"github.com/tekkamanendless/rosco-dashcam-processor/riff"
 	"github.com/tekkamanendless/rosco-dashcam-processor/rosco"
 )
@@ -63,7 +64,7 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 	// Figure out the video information.
 	var videoWidth int32
 	var videoHeight int32
-	for _, chunk := range videoChunks {
+	for chunkIndex, chunk := range videoChunks {
 		// Only use the key frames.
 		if !strings.HasSuffix(chunk.ID, "0") {
 			continue
@@ -72,15 +73,29 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 		if len(nalus) == 0 {
 			continue
 		}
-		for _, nalu := range nalus {
+		for naluIndex, nalu := range nalus {
 			spsInfo, err := h264parser.ParseSPS(nalu)
 			if err != nil {
+				logrus.Debugf("Chunk %d: NALU %d: Could not parse SPS: %v", chunkIndex, naluIndex, err)
 				continue
 			}
-			videoWidth = int32(spsInfo.Width)
-			videoHeight = int32(spsInfo.Height)
+			newWidth := int32(spsInfo.Width)
+			newHeight := int32(spsInfo.Height)
+			logrus.Debugf("Chunk %d: NALU %d: profile_idc: %d, width: %d, height: %d", chunkIndex, naluIndex, spsInfo.ProfileIdc, newWidth, newHeight)
+			switch spsInfo.ProfileIdc {
+			case 66, 77, 88, 100, 110, 122, 244: // These profiles actually encode real video.
+				if newWidth > videoWidth {
+					videoWidth = newWidth
+					logrus.Debugf("Chunk %d: NALU %d: Setting new video width: %d", chunkIndex, naluIndex, videoWidth)
+				}
+				if newHeight > videoHeight {
+					videoHeight = newHeight
+					logrus.Debugf("Chunk %d: NALU %d: Setting new video height: %d", chunkIndex, naluIndex, videoHeight)
+				}
+			}
 		}
 	}
+	logrus.Debugf("Video dimensions: width: %d, height: %d", videoWidth, videoHeight)
 
 	// Strip out any frames before the first keyframe.  We can't do anything
 	// without a keyframe.
