@@ -110,12 +110,31 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 	}
 	videoChunks = videoChunks[firstKeyframeIndex:]
 
+	var firstVideoTimestamp uint32
+	var lastVideoTimestamp uint32
+	for _, chunk := range videoChunks {
+		if firstVideoTimestamp == 0 || chunk.Video.Timestamp < firstVideoTimestamp {
+			firstVideoTimestamp = chunk.Video.Timestamp
+		}
+		if lastVideoTimestamp == 0 || chunk.Video.Timestamp > lastVideoTimestamp {
+			lastVideoTimestamp = chunk.Video.Timestamp
+		}
+	}
+	videoDuration := lastVideoTimestamp - firstVideoTimestamp
+	framesPerSecond := 1000000.0 * float64(len(videoChunks)) / float64(videoDuration)
+
+	logrus.Debugf("First video timestamp: %d", firstVideoTimestamp)
+	logrus.Debugf("Last video timestamp: %d", lastVideoTimestamp)
+	logrus.Debugf("Video duration: %d us", videoDuration)
+	logrus.Debugf("Video frames: %d", len(videoChunks))
+	logrus.Debugf("Frames per second: %v", framesPerSecond)
+
 	videoStream := riff.Stream{
 		Header: riff.AVIStreamHeader{
 			Type:                [4]byte{'v', 'i', 'd', 's'},
-			Handler:             [4]byte{'H', '2', '6', '4'}, // TODO: Pull this from the chunks.
-			Scale:               1,
-			Rate:                30, // TODO: Pull the frame rate from the chunks.
+			Handler:             [4]byte{'H', '2', '6', '4'},   // TODO: Pull this from the chunks.
+			Rate:                int32(1000 * framesPerSecond), // Effective fps is Rate / Scale; this allows for fractional fps.
+			Scale:               1000,                          // Effective fps is Rate / Scale; this allows for fractional fps.
 			SuggestedBufferSize: 65536,
 			Width:               int16(videoWidth),
 			Height:              int16(videoHeight),
@@ -131,9 +150,6 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 	}
 	videoStream.VideoFormat.SizeImage = videoStream.VideoFormat.Width * videoStream.VideoFormat.Height * int32(videoStream.VideoFormat.BitCount) / 8
 	for _, chunk := range videoChunks {
-		if chunk.Video == nil {
-			continue
-		}
 		streamChunk := riff.Chunk{
 			ID:         "00dc",
 			Data:       chunk.Video.Media,
@@ -142,10 +158,10 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 		}
 		videoStream.Chunks = append(videoStream.Chunks, streamChunk)
 	}
-	videoStream.Header.Length = int32(len(videoStream.Chunks))
+	videoStream.Header.Length = int32(len(videoChunks))
 	file := &riff.AVIFile{
 		Header: riff.AVIHeader{
-			MicroSecPerFrame:    33333, // TODO: Figure this out somehow.
+			MicroSecPerFrame:    int32(videoDuration) / int32(len(videoChunks)),
 			MaxBytesPerSec:      0,
 			PaddingGranularity:  0,
 			Flags:               riff.AVIFlagIsInterleaved | riff.AVIFlagTrustCKType | riff.AVIFlagHasIndex,
@@ -164,15 +180,36 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 	file.Streams = append(file.Streams, videoStream)
 	file.Header.Streams++
 
+	//spew.Dump(file.Header)
+	//spew.Dump(videoStream.Header)
+
 	fmt.Printf("Audio stream ID: %s\n", audioStreamID)
 	{
 		rawPCM := strings.HasSuffix(audioStreamID, "7")
+
+		wavAudioFormat := 0x0001 // PCM
+		audioBitDepth := 8
+		if rawPCM {
+			entry := info.Metadata.Entry("_audioBitDepth")
+			if entry != nil {
+				audioBitDepth = int(entry.Value.(int64))
+				logrus.Debugf("Audio bit depth (from the metadata): %d", audioBitDepth)
+			}
+
+			entry = info.Metadata.Entry("_wavAudioFormat")
+			if entry != nil {
+				wavAudioFormat = int(entry.Value.(int64))
+				logrus.Debugf("WAV audio format (from the metadata): %d", wavAudioFormat)
+			}
+		}
+		logrus.Debugf("Audio bit depth: %d", audioBitDepth)
+		logrus.Debugf("WAV audio format: %d", wavAudioFormat)
 
 		audioStream := riff.Stream{}
 
 		chunks := info.ChunksForStreamID(audioStreamID)
 		for chunkIndex, chunk := range chunks {
-			intBuffer, err := MakePCM(chunk.Audio.Media, rawPCM)
+			intBuffer, err := MakePCM(chunk.Audio.Media, rawPCM, audioBitDepth)
 			if err != nil {
 				return nil, err
 			}
@@ -186,16 +223,12 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 					SuggestedBufferSize: 65536,
 				}
 				audioStream.AudioFormat = riff.AVIStreamAudioFormat{
-					FormatTag:      0x0001, // PCM
+					FormatTag:      int16(wavAudioFormat),
 					Channels:       int16(intBuffer.Format.NumChannels),
 					SamplesPerSec:  int32(intBuffer.Format.SampleRate),
 					AvgBytesPerSec: int32(intBuffer.Format.SampleRate * intBuffer.Format.NumChannels / (intBuffer.SourceBitDepth / 8)),
 					BlockAlign:     int16(intBuffer.SourceBitDepth / 8 * intBuffer.Format.NumChannels),
 					BitsPerSample:  int16(intBuffer.SourceBitDepth * intBuffer.Format.NumChannels),
-				}
-
-				if rawPCM {
-					audioStream.AudioFormat.FormatTag = 0x0007 // mu-law
 				}
 			}
 

@@ -1,4 +1,4 @@
-# Format
+# Format (NVR)
 An NVR file is a proprietary audio/video container that attaches metadata to specific parts of the video streams, including voltage, speed, etc.
 
 Each NVR file consists of two parts:

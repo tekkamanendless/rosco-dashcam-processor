@@ -202,13 +202,33 @@ You may also choose the output format.
 					}
 
 					rawPCM := strings.HasSuffix(streamID, "7")
+					logrus.Debugf("Raw PCM: %t", rawPCM)
+
+					wavAudioFormat := 0x0001 // PCM
+					audioBitDepth := 8
+					if rawPCM {
+						wavAudioFormat = 0x0007 // mu-law
+
+						entry := info.Metadata.Entry("_audioBitDepth")
+						if entry != nil {
+							audioBitDepth = int(entry.Value.(int64))
+							logrus.Debugf("Audio bit depth (from the metadata): %d", audioBitDepth)
+						}
+
+						entry = info.Metadata.Entry("_wavAudioFormat")
+						if entry != nil {
+							wavAudioFormat = int(entry.Value.(int64))
+							logrus.Debugf("WAV audio format (from the metadata): %d", wavAudioFormat)
+						}
+					}
+					logrus.Debugf("WAV audio format: %d", wavAudioFormat)
 
 					var intBuffers []*audio.IntBuffer
 					for _, chunk := range info.ChunksForStreamID(streamID) {
 						if chunk.Audio == nil {
 							continue
 						}
-						intBuffer, err := roscoconv.MakePCM(chunk.Audio.Media, rawPCM)
+						intBuffer, err := roscoconv.MakePCM(chunk.Audio.Media, rawPCM, audioBitDepth)
 						if err != nil {
 							fmt.Printf("Error: %v\n", err)
 							os.Exit(1)
@@ -255,10 +275,6 @@ You may also choose the output format.
 						}
 						defer out.Close()
 
-						wavAudioFormat := 0x0001 // PCM
-						if rawPCM {
-							wavAudioFormat = 0x0007 // mu-law
-						}
 						wavEncoder := wav.NewEncoder(out, intBuffer.Format.SampleRate, intBuffer.SourceBitDepth, intBuffer.Format.NumChannels, wavAudioFormat)
 						fmt.Printf("WAV encoder: Sample rate: %d, Bit Depth: %d, Channels: %d, Format: 0x%x\n", intBuffer.Format.SampleRate, intBuffer.SourceBitDepth, intBuffer.Format.NumChannels, wavAudioFormat)
 						wavEncoder.Write(intBuffer)
@@ -347,8 +363,10 @@ With this, you can quickly export all of the videos from a particular directory 
 								os.Exit(1)
 							}
 							for _, fileInfo := range fileInfos {
-								if !fileInfo.IsDir() && strings.HasSuffix(fileInfo.Name(), ".nvr") {
-									inputFiles = append(inputFiles, arg+"/"+fileInfo.Name())
+								if !fileInfo.IsDir() {
+									if strings.HasSuffix(fileInfo.Name(), ".nvr") || strings.HasSuffix(fileInfo.Name(), ".asd") {
+										inputFiles = append(inputFiles, arg+"/"+fileInfo.Name())
+									}
 								}
 							}
 						} else {
@@ -390,7 +408,12 @@ With this, you can quickly export all of the videos from a particular directory 
 							if len(outputDirectory) == 0 {
 								destinationFolder = path.Dir(inputFile)
 							}
-							destinationBaseName := strings.TrimSuffix(path.Base(inputFile), ".nvr")
+							destinationBaseName := path.Base(inputFile)
+							if strings.HasSuffix(destinationBaseName, ".nvr") {
+								destinationBaseName = strings.TrimSuffix(path.Base(inputFile), ".nvr")
+							} else if strings.HasSuffix(destinationBaseName, ".asd") {
+								destinationBaseName = strings.TrimSuffix(path.Base(info.Filename), ".asd")
+							}
 							destinationFilename := fmt.Sprintf("%s_%d.avi", destinationBaseName, streamIndex+1)
 							destinationFullPath := destinationFilename
 							if len(destinationFolder) > 0 {
@@ -481,6 +504,7 @@ func printMetadata(metadata *rosco.Metadata) {
 
 // printFileInfo prints out the information about the file.
 func printFileInfo(info *rosco.FileInfo) {
+	fmt.Printf("Filename: %s\n", info.Filename)
 	printMetadata(info.Metadata)
 
 	fmt.Printf("Unknown file header data:\n")

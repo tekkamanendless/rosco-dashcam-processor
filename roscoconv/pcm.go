@@ -17,7 +17,7 @@ var globalDecoder *opus.Decoder
 //
 // If `rawPCM` is true, then the data will be interpreted as raw PCM data.
 // Otherwise, it will be interpreted as Opus data.
-func MakePCM(data []byte, rawPCM bool) (*audio.IntBuffer, error) {
+func MakePCM(data []byte, rawPCM bool, bitDepth int) (*audio.IntBuffer, error) {
 	var intBuffer *audio.IntBuffer
 
 	if rawPCM {
@@ -29,11 +29,35 @@ func MakePCM(data []byte, rawPCM bool) (*audio.IntBuffer, error) {
 				NumChannels: channelCount,
 				SampleRate:  sampleRate,
 			},
-			SourceBitDepth: 8,
+			SourceBitDepth: bitDepth,
 			Data:           make([]int, 0, len(data)),
 		}
 
-		for _, value := range data {
+		bytesPerSample := bitDepth / 8
+		sampleCount := len(data) / bytesPerSample
+
+		reader := bytes.NewReader(data)
+		for i := 0; i < sampleCount; i++ {
+			var value int
+			switch bytesPerSample {
+			case 1:
+				var temporaryValue int8
+				err := binary.Read(reader, binary.LittleEndian, &temporaryValue)
+				if err != nil {
+					return nil, fmt.Errorf("Could not read 8-bit value: %v", err)
+				}
+				value = int(temporaryValue)
+			case 2:
+				var temporaryValue int16
+				err := binary.Read(reader, binary.LittleEndian, &temporaryValue)
+				if err != nil {
+					return nil, fmt.Errorf("Could not read 16-bit value: %v", err)
+				}
+				value = int(temporaryValue)
+			default:
+				return nil, fmt.Errorf("Unsupported bit depth: %d", bitDepth)
+			}
+
 			intBuffer.Data = append(intBuffer.Data, int(value))
 		}
 	} else {

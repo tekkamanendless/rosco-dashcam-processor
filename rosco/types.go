@@ -13,6 +13,15 @@ type Metadata struct {
 	Entries []MetadataEntry
 }
 
+func (m *Metadata) Entry(name string) *MetadataEntry {
+	for _, entry := range m.Entries {
+		if entry.Name == name {
+			return &entry
+		}
+	}
+	return nil
+}
+
 // MetadataEntry is a single metadata entry.
 type MetadataEntry struct {
 	Type  int8

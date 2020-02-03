@@ -1,18 +1,30 @@
 # Rosco Dashcam Processor
-This provides a command-line utility to read Rosco dashcam files (with the extension ".nvr") and extract their audio and video components.
-
+This provides a command-line utility to read Rosco dashcam files and extract their audio and video components.
 The official Windows application provided by Rosco is extremely cumbersome and often buggy, so this provides an open-source alternative.
+
+The following camera generations are supported:
+
+* DVXC, with files ending in ".asd"
+* DVXC4, with files ending in ".nvr"
 
 This has been tested with the following camera models:
 
 * DV440
 
-## File Format
+## File Formats
+### DVXC, ASD
+The ASD file format is a fairly simple wrapper around raw PCM audio and h264 video.
+Unfortunately, it is non-standard and cannot be played directly.
+But that's why this tool is here!
+
+For more information on the file format, see [here](README_FORMAT_ASD.md)
+
+### DVXC4, NVR
 The NVR file format is a fairly simple wrapper around raw PCM audio and h264 video.
 Unfortunately, it is non-standard and cannot be played directly.
 But that's why this tool is here!
 
-For more information on the file format, see [here](README_FORMAT.md)
+For more information on the file format, see [here](README_FORMAT_NVR.md)
 
 ## Requirements
 
