@@ -2,11 +2,9 @@ package roscoconv
 
 import (
 	"fmt"
-	"math"
 	"sort"
 	"strings"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/nareix/joy4/codec/h264parser"
 	"github.com/sirupsen/logrus"
 	"github.com/tekkamanendless/rosco-dashcam-processor/riff"
@@ -133,11 +131,10 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 
 	videoStream := riff.Stream{
 		Header: riff.AVIStreamHeader{
-			Type:    [4]byte{'v', 'i', 'd', 's'},
-			Handler: [4]byte{'H', '2', '6', '4'}, // TODO: Pull this from the chunks.
-			Scale:   1,
-			//Rate:                30, // TODO: Pull the frame rate from the chunks.
-			Rate:                int32(math.Ceil(framesPerSecond)),
+			Type:                [4]byte{'v', 'i', 'd', 's'},
+			Handler:             [4]byte{'H', '2', '6', '4'},   // TODO: Pull this from the chunks.
+			Rate:                int32(1000 * framesPerSecond), // Effective fps is Rate / Scale; this allows for fractional fps.
+			Scale:               1000,                          // Effective fps is Rate / Scale; this allows for fractional fps.
 			SuggestedBufferSize: 65536,
 			Width:               int16(videoWidth),
 			Height:              int16(videoHeight),
@@ -164,7 +161,6 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 	videoStream.Header.Length = int32(len(videoChunks))
 	file := &riff.AVIFile{
 		Header: riff.AVIHeader{
-			//MicroSecPerFrame:    33333, // TODO: Figure this out somehow.
 			MicroSecPerFrame:    int32(videoDuration) / int32(len(videoChunks)),
 			MaxBytesPerSec:      0,
 			PaddingGranularity:  0,
@@ -184,8 +180,8 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 	file.Streams = append(file.Streams, videoStream)
 	file.Header.Streams++
 
-	spew.Dump(file.Header)
-	spew.Dump(videoStream.Header)
+	//spew.Dump(file.Header)
+	//spew.Dump(videoStream.Header)
 
 	fmt.Printf("Audio stream ID: %s\n", audioStreamID)
 	{

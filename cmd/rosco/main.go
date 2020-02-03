@@ -363,8 +363,10 @@ With this, you can quickly export all of the videos from a particular directory 
 								os.Exit(1)
 							}
 							for _, fileInfo := range fileInfos {
-								if !fileInfo.IsDir() && strings.HasSuffix(fileInfo.Name(), ".nvr") {
-									inputFiles = append(inputFiles, arg+"/"+fileInfo.Name())
+								if !fileInfo.IsDir() {
+									if strings.HasSuffix(fileInfo.Name(), ".nvr") || strings.HasSuffix(fileInfo.Name(), ".asd") {
+										inputFiles = append(inputFiles, arg+"/"+fileInfo.Name())
+									}
 								}
 							}
 						} else {
@@ -406,7 +408,12 @@ With this, you can quickly export all of the videos from a particular directory 
 							if len(outputDirectory) == 0 {
 								destinationFolder = path.Dir(inputFile)
 							}
-							destinationBaseName := strings.TrimSuffix(path.Base(inputFile), ".nvr")
+							destinationBaseName := path.Base(inputFile)
+							if strings.HasSuffix(destinationBaseName, ".nvr") {
+								destinationBaseName = strings.TrimSuffix(path.Base(inputFile), ".nvr")
+							} else if strings.HasSuffix(destinationBaseName, ".asd") {
+								destinationBaseName = strings.TrimSuffix(path.Base(info.Filename), ".asd")
+							}
 							destinationFilename := fmt.Sprintf("%s_%d.avi", destinationBaseName, streamIndex+1)
 							destinationFullPath := destinationFilename
 							if len(destinationFolder) > 0 {
