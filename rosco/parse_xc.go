@@ -148,7 +148,7 @@ func ParseReaderXC(reader *bufio.Reader, headerOnly bool) (*FileInfo, error) {
 				return nil, fmt.Errorf("Could not parse XCGPSPacket: %v", err)
 			}
 			//spew.Dump(packet)
-			logrus.Debugf("GPS packet: (%f, %f)", packet.Latitude, packet.Longitude)
+			logrus.Debugf("GPS packet: (%f, %f) @ %d-%d-%d %d:%d:%d", packet.Latitude, packet.Longitude, packet.Year, packet.Month, packet.Day, packet.Hour, packet.Minute, packet.Second)
 		case XCAudioPacketType:
 			packet, err := parseXCAudioPacket(reader)
 			if err != nil {
