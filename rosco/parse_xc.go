@@ -114,7 +114,7 @@ func ParseReaderXC(reader *bufio.Reader, headerOnly bool) (*FileInfo, error) {
 		return fileInfo, nil
 	}
 
-	var firstTimestampInNanoseconds int64
+	chunkTimestamps := []int64{}
 
 	done := false
 	for !done {
@@ -135,9 +135,6 @@ func ParseReaderXC(reader *bufio.Reader, headerOnly bool) (*FileInfo, error) {
 			}
 			//spew.Dump(packet)
 			logrus.Debugf("Unknown00 packet: %v", packet.Timestamp)
-			if firstTimestampInNanoseconds == 0 {
-				firstTimestampInNanoseconds = packet.Timestamp.UnixNano()
-			}
 		case XCUnknown01PacketType:
 			packet, err := parseXCUnknown01Packet(reader)
 			if err != nil {
@@ -158,40 +155,36 @@ func ParseReaderXC(reader *bufio.Reader, headerOnly bool) (*FileInfo, error) {
 				return nil, fmt.Errorf("Could not parse XCAudioPacket: %v", err)
 			}
 			//spew.Dump(packet)
-			logrus.Debugf("Audio packet: %d bytes", packet.PayloadSize)
-			if firstTimestampInNanoseconds == 0 {
-				firstTimestampInNanoseconds = packet.Timestamp.UnixNano()
-			}
+			logrus.Debugf("Audio packet: %d bytes (%v)", packet.PayloadSize, packet.Timestamp)
 
 			chunk := &Chunk{
 				ID:   "17",
 				Type: "wb",
 				Audio: &AudioChunk{
-					Timestamp: uint32((packet.Timestamp.UnixNano() - firstTimestampInNanoseconds) / 1000),
+					Timestamp: 0, // We'll set this later.
 					Media:     packet.Payload,
 				},
 			}
 			fileInfo.Chunks = append(fileInfo.Chunks, chunk)
+			chunkTimestamps = append(chunkTimestamps, packet.Timestamp.UnixNano())
 		case XCVideoPacketType:
 			packet, err := parseXCVideoPacket(reader)
 			if err != nil {
 				return nil, fmt.Errorf("Could not parse XCVideoPacket: %v", err)
 			}
 			//spew.Dump(packet)
-			logrus.Debugf("Video packet: %d / %d: %d bytes", packet.StreamNumber, packet.StreamType, packet.PayloadSize)
-			if firstTimestampInNanoseconds == 0 {
-				firstTimestampInNanoseconds = packet.Timestamp.UnixNano()
-			}
+			logrus.Debugf("Video packet: %d / %d: %d bytes (%v)", packet.StreamNumber, packet.StreamType, packet.PayloadSize, packet.Timestamp)
 
 			chunk := &Chunk{
 				ID:   fmt.Sprintf("%d%d", packet.StreamNumber, packet.StreamType),
 				Type: "dc",
 				Video: &VideoChunk{
-					Timestamp: uint32((packet.Timestamp.UnixNano() - firstTimestampInNanoseconds) / 1000),
+					Timestamp: 0, // We'll set this later.
 					Media:     packet.Payload,
 				},
 			}
 			fileInfo.Chunks = append(fileInfo.Chunks, chunk)
+			chunkTimestamps = append(chunkTimestamps, packet.Timestamp.UnixNano())
 		case XCEndPacketType:
 			packet, err := parseXCEndPacket(reader)
 			if err != nil {
@@ -202,6 +195,23 @@ func ParseReaderXC(reader *bufio.Reader, headerOnly bool) (*FileInfo, error) {
 			done = true
 		default:
 			return nil, fmt.Errorf("Unknown packet type: %x", packetType)
+		}
+	}
+
+	var smallestTimestamp int64
+	for _, timestamp := range chunkTimestamps {
+		if smallestTimestamp == 0 || timestamp < smallestTimestamp {
+			smallestTimestamp = timestamp
+		}
+	}
+
+	for i, chunk := range fileInfo.Chunks {
+		normalizedTimestamp := chunkTimestamps[i] - smallestTimestamp
+		if chunk.Audio != nil {
+			chunk.Audio.Timestamp = uint32(normalizedTimestamp / 1000) // Convert nanoseconds to microseconds.
+		}
+		if chunk.Video != nil {
+			chunk.Video.Timestamp = uint32(normalizedTimestamp / 1000) // Convert nanoseconds to microseconds.
 		}
 	}
 
