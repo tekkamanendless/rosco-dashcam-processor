@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/sirupsen/logrus"
 )
 
@@ -32,8 +33,9 @@ type XCHeaderPacket struct {
 }
 
 type XCUnknown00Packet struct {
-	Unknown1  []byte // TODO: Figure this out.
-	Timestamp time.Time
+	SequenceNumber uint32
+	Unknown1       []byte // TODO: Figure this out.
+	Timestamp      time.Time
 }
 
 type XCUnknown01Packet struct {
@@ -41,17 +43,26 @@ type XCUnknown01Packet struct {
 }
 
 type XCGPSPacket struct {
-	SequenceNumber uint32
-	Unknown1       []byte // TODO: Figure this out.
-	Latitude       float64
-	Longitude      float64
-	Unknown2       []byte // TODO: Figure this out.
-	Year           int32
-	Month          int32
-	Day            int32
-	Hour           int32
-	Minute         int32
-	Second         int32
+	SequenceNumber     uint32
+	Unknown1           byte // TODO: Figure this out.
+	LatitudeDirection  rune
+	LongitudeDirection rune
+	Unknown2           byte   // TODO: Figure this out.
+	Unknown3           []byte // TODO: Figure this out.
+	Speed              uint32
+	Unknown4           []byte // TODO: Figure this out.
+	Unknown5           []byte // TODO: Figure this out.
+	Unknown6           []byte // TODO: Figure this out.
+	Latitude           float64
+	Longitude          float64
+	Unknown7           []byte // TODO: Figure this out.
+	Timestamp          time.Time
+	Year               int32
+	Month              int32
+	Day                int32
+	Hour               int32
+	Minute             int32
+	Second             int32
 }
 
 type XCAudioPacket struct {
@@ -134,7 +145,7 @@ func ParseReaderXC(reader *bufio.Reader, headerOnly bool) (*FileInfo, error) {
 				return nil, fmt.Errorf("Could not parse XCUnknown00Packet: %v", err)
 			}
 			//spew.Dump(packet)
-			logrus.Debugf("Unknown00 packet: %v", packet.Timestamp)
+			logrus.Debugf("Unknown00 packet: %v, %v", packet.SequenceNumber, packet.Timestamp)
 		case XCUnknown01PacketType:
 			packet, err := parseXCUnknown01Packet(reader)
 			if err != nil {
@@ -148,7 +159,7 @@ func ParseReaderXC(reader *bufio.Reader, headerOnly bool) (*FileInfo, error) {
 				return nil, fmt.Errorf("Could not parse XCGPSPacket: %v", err)
 			}
 			//spew.Dump(packet)
-			logrus.Debugf("GPS packet: (%f, %f) @ %d-%d-%d %d:%d:%d", packet.Latitude, packet.Longitude, packet.Year, packet.Month, packet.Day, packet.Hour, packet.Minute, packet.Second)
+			logrus.Debugf("GPS packet: (%f %c, %f %c) -> %d mph @ %v / %04d-%02d-%02d %02d:%02d:%02d", packet.Latitude, packet.LatitudeDirection, packet.Longitude, packet.LongitudeDirection, packet.Speed, packet.Timestamp, packet.Year, packet.Month, packet.Day, packet.Hour, packet.Minute, packet.Second)
 		case XCAudioPacketType:
 			packet, err := parseXCAudioPacket(reader)
 			if err != nil {
@@ -258,6 +269,9 @@ func parseXCHeaderPacket(reader *bufio.Reader) (*XCHeaderPacket, error) {
 	if err != nil {
 		return nil, err
 	}
+	for _, line := range strings.Split(spew.Sdump(packet.Unknown1), "\n") {
+		logrus.Debugf("HeaderPacket.Unknown1: %s", line)
+	}
 
 	packet.StartTime, err = parseXCTimestamp(bufferReader)
 	if err != nil {
@@ -272,6 +286,9 @@ func parseXCHeaderPacket(reader *bufio.Reader) (*XCHeaderPacket, error) {
 	packet.Unknown2, err = ioutil.ReadAll(bufferReader)
 	if err != nil {
 		return nil, err
+	}
+	for _, line := range strings.Split(spew.Sdump(packet.Unknown2), "\n") {
+		logrus.Debugf("HeaderPacket.Unknown2: %s", line)
 	}
 
 	return packet, nil
@@ -298,10 +315,18 @@ func parseXCUnknown00Packet(reader *bufio.Reader) (*XCUnknown00Packet, error) {
 		return nil, fmt.Errorf("Incorrect first byte: %x", firstByte)
 	}
 
-	packet.Unknown1 = make([]byte, 12)
+	err = binary.Read(bufferReader, binary.LittleEndian, &packet.SequenceNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	packet.Unknown1 = make([]byte, 8)
 	_, err = io.ReadFull(bufferReader, packet.Unknown1)
 	if err != nil {
 		return nil, fmt.Errorf("Could not read unknown1 content: %v", err)
+	}
+	for _, line := range strings.Split(spew.Sdump(packet.Unknown1), "\n") {
+		logrus.Debugf("Unknown00Packet.Unknown1: %s", line)
 	}
 
 	packet.Timestamp, err = parseXCTimestamp(bufferReader)
@@ -358,6 +383,9 @@ func parseXCGPSPacket(reader *bufio.Reader) (*XCGPSPacket, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Could not read packet contents: %v", err)
 	}
+	//for _, line := range strings.Split(spew.Sdump(buffer), "\n") {
+	//	logrus.Debugf("GPSPacket.Total: %s", line)
+	//}
 
 	bufferReader := bufio.NewReader(bytes.NewReader(buffer))
 
@@ -375,10 +403,78 @@ func parseXCGPSPacket(reader *bufio.Reader) (*XCGPSPacket, error) {
 		return nil, err
 	}
 
-	packet.Unknown1 = make([]byte, 23)
-	_, err = io.ReadFull(bufferReader, packet.Unknown1)
+	packet.Unknown1, err = bufferReader.ReadByte()
 	if err != nil {
 		return nil, err
+	}
+	for _, line := range strings.Split(spew.Sdump(packet.Unknown1), "\n") {
+		logrus.Debugf("GPSPacket.Unknown1: %s", line)
+	}
+
+	var singleByte byte
+	singleByte, err = bufferReader.ReadByte()
+	if err != nil {
+		return nil, err
+	}
+	if singleByte != 0x00 {
+		packet.LatitudeDirection = rune(singleByte)
+	}
+
+	singleByte, err = bufferReader.ReadByte()
+	if err != nil {
+		return nil, err
+	}
+	if singleByte != 0x00 {
+		packet.LongitudeDirection = rune(singleByte)
+	}
+
+	packet.Unknown2, err = bufferReader.ReadByte()
+	if err != nil {
+		return nil, err
+	}
+	for _, line := range strings.Split(spew.Sdump(packet.Unknown2), "\n") {
+		logrus.Debugf("GPSPacket.Unknown2: %s", line)
+	}
+
+	packet.Unknown3 = make([]byte, 4)
+	_, err = io.ReadFull(bufferReader, packet.Unknown3)
+	if err != nil {
+		return nil, err
+	}
+	for _, line := range strings.Split(spew.Sdump(packet.Unknown3), "\n") {
+		logrus.Debugf("GPSPacket.Unknown3: %s", line)
+	}
+
+	err = binary.Read(bufferReader, binary.LittleEndian, &packet.Speed)
+	if err != nil {
+		return nil, err
+	}
+
+	packet.Unknown4 = make([]byte, 4)
+	_, err = io.ReadFull(bufferReader, packet.Unknown4)
+	if err != nil {
+		return nil, err
+	}
+	for _, line := range strings.Split(spew.Sdump(packet.Unknown4), "\n") {
+		logrus.Debugf("GPSPacket.Unknown4: %s", line)
+	}
+
+	packet.Unknown5 = make([]byte, 4)
+	_, err = io.ReadFull(bufferReader, packet.Unknown5)
+	if err != nil {
+		return nil, err
+	}
+	for _, line := range strings.Split(spew.Sdump(packet.Unknown5), "\n") {
+		logrus.Debugf("GPSPacket.Unknown5: %s", line)
+	}
+
+	packet.Unknown6 = make([]byte, 4)
+	_, err = io.ReadFull(bufferReader, packet.Unknown6)
+	if err != nil {
+		return nil, err
+	}
+	for _, line := range strings.Split(spew.Sdump(packet.Unknown6), "\n") {
+		logrus.Debugf("GPSPacket.Unknown6: %s", line)
 	}
 
 	stringBuffer := make([]byte, 15)
@@ -400,8 +496,16 @@ func parseXCGPSPacket(reader *bufio.Reader) (*XCGPSPacket, error) {
 		return nil, err
 	}
 
-	packet.Unknown2 = make([]byte, 11)
-	_, err = io.ReadFull(bufferReader, packet.Unknown2)
+	packet.Unknown7 = make([]byte, 2)
+	_, err = io.ReadFull(bufferReader, packet.Unknown7)
+	if err != nil {
+		return nil, err
+	}
+	for _, line := range strings.Split(spew.Sdump(packet.Unknown7), "\n") {
+		logrus.Debugf("GPSPacket.Unknown7: %s", line)
+	}
+
+	packet.Timestamp, err = parseXCTimestamp(bufferReader)
 	if err != nil {
 		return nil, err
 	}
@@ -506,6 +610,9 @@ func parseXCVideoPacket(reader *bufio.Reader) (*XCVideoPacket, error) {
 	if err != nil {
 		return nil, err
 	}
+	for _, line := range strings.Split(spew.Sdump(packet.Unknown1), "\n") {
+		logrus.Debugf("VideoPacket.Unknown1: %s", line)
+	}
 
 	err = binary.Read(bufferReader, binary.LittleEndian, &packet.StreamNumber)
 	if err != nil {
@@ -516,6 +623,9 @@ func parseXCVideoPacket(reader *bufio.Reader) (*XCVideoPacket, error) {
 	_, err = io.ReadFull(bufferReader, packet.Unknown2)
 	if err != nil {
 		return nil, err
+	}
+	for _, line := range strings.Split(spew.Sdump(packet.Unknown2), "\n") {
+		logrus.Debugf("VideoPacket.Unknown2: %s", line)
 	}
 
 	err = binary.Read(bufferReader, binary.LittleEndian, &packet.StreamType)
