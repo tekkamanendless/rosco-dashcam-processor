@@ -125,7 +125,7 @@ type Chunk struct {
 	ID         string
 	Data       []byte
 	IsKeyframe bool   // Custom; this is true if we want to index this chunk.
-	Timestamp  uint32 // Custom; this helps us order our chunks.
+	Timestamp  uint64 // Custom; this helps us order our chunks.
 }
 
 // AVIChunkIndex describes a chunk index.

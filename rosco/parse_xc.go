@@ -219,10 +219,10 @@ func ParseReaderXC(reader *bufio.Reader, headerOnly bool) (*FileInfo, error) {
 	for i, chunk := range fileInfo.Chunks {
 		normalizedTimestamp := chunkTimestamps[i] - smallestTimestamp
 		if chunk.Audio != nil {
-			chunk.Audio.Timestamp = uint32(normalizedTimestamp / 1000) // Convert nanoseconds to microseconds.
+			chunk.Audio.Timestamp = uint64(normalizedTimestamp / 1000) // Convert nanoseconds to microseconds.
 		}
 		if chunk.Video != nil {
-			chunk.Video.Timestamp = uint32(normalizedTimestamp / 1000) // Convert nanoseconds to microseconds.
+			chunk.Video.Timestamp = uint64(normalizedTimestamp / 1000) // Convert nanoseconds to microseconds.
 		}
 	}
 

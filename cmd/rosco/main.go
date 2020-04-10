@@ -123,7 +123,6 @@ For a more aggressive output, use the --dump flag.
 				if chunk.Audio != nil {
 					fmt.Printf("This is an audio chunk.\n")
 					fmt.Printf("Timestamp: %v\n", chunk.Audio.Timestamp)
-					fmt.Printf("Unknown1: %v\n", chunk.Audio.Unknown1)
 					fmt.Printf("Media: (%d)\n", len(chunk.Audio.Media))
 					printBinaryData(chunk.Audio.Media, byteLimit)
 					if len(chunk.Audio.ExtraMedia) > 0 {
@@ -136,7 +135,6 @@ For a more aggressive output, use the --dump flag.
 					fmt.Printf("Codec: %v\n", chunk.Video.Codec)
 					fmt.Printf("Unknown1: %v\n", chunk.Video.Unknown1)
 					fmt.Printf("Timestamp: %v\n", chunk.Video.Timestamp)
-					fmt.Printf("Unknown2: %v\n", chunk.Video.Unknown2)
 					printMetadata(chunk.Video.Metadata)
 					fmt.Printf("Media: (%d)\n", len(chunk.Video.Media))
 					printBinaryData(chunk.Video.Media, byteLimit)

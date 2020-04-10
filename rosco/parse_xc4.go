@@ -137,14 +137,6 @@ func ParseReaderXC4(reader io.Reader, headerOnly bool) (*FileInfo, error) {
 
 			logger.Debugf("Timestamp: %d", chunk.Video.Timestamp)
 
-			chunk.Video.Unknown2 = make([]byte, 4)
-			err = binary.Read(reader, binary.LittleEndian, &chunk.Video.Unknown2)
-			if err != nil {
-				return nil, fmt.Errorf("Could not read unknown2 for chunk %d: %v", i, err)
-			}
-
-			logger.Debugf("Unknown2: %d", chunk.Video.Unknown2)
-
 			var metadataLength int32
 			err = binary.Read(reader, binary.LittleEndian, &metadataLength)
 			if err != nil {
@@ -199,11 +191,7 @@ func ParseReaderXC4(reader io.Reader, headerOnly bool) (*FileInfo, error) {
 				return nil, fmt.Errorf("Could not read the timestamp for chunk %d: %v", i, err)
 			}
 
-			chunk.Audio.Unknown1 = make([]byte, 4)
-			err = binary.Read(reader, binary.LittleEndian, &chunk.Audio.Unknown1)
-			if err != nil {
-				return nil, fmt.Errorf("Could not read unknown1 for chunk %d: %v", i, err)
-			}
+			logger.Debugf("Timestamp: %d", chunk.Audio.Timestamp)
 
 			buffer = make([]byte, audioChannelLength)
 			_, err = io.ReadFull(reader, buffer)

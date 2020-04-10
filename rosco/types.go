@@ -39,8 +39,7 @@ type Chunk struct {
 
 // AudioChunk is an audio chunk.
 type AudioChunk struct {
-	Timestamp  uint32
-	Unknown1   []byte
+	Timestamp  uint64
 	Media      []byte
 	ExtraMedia []byte
 }
@@ -49,8 +48,7 @@ type AudioChunk struct {
 type VideoChunk struct {
 	Codec     string
 	Unknown1  []byte
-	Timestamp uint32
-	Unknown2  []byte
+	Timestamp uint64
 	Metadata  *Metadata
 	Media     []byte
 }

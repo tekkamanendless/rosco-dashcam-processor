@@ -23,7 +23,7 @@ func (f *FileInfo) StreamIDs() []string {
 func (f *FileInfo) ChunksForStreamID(streamID string) []*Chunk {
 	chunks := []*Chunk{}
 
-	lastTimestamp := uint32(0)
+	lastTimestamp := uint64(0)
 	for _, chunk := range f.Chunks {
 		if chunk.ID == streamID {
 			if chunk.Video != nil {

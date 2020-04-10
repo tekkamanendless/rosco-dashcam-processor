@@ -31,16 +31,14 @@ Video streams are encoded as h.264 packets.
    1. (4 bytes) Length of media (everything after the metadata); note that this will need to be padded to 8 bytes
    1. (2 bytes) Length of metadata
    1. (2 bytes) ???
-   1. (4 bytes) Timestamp (appears to be in 1/1000000 seconds)
-   1. (4 bytes) ??? (always zero); this may be the first part of a 64-bit timestamp
+   1. (8 bytes) Timestamp (in 1/1000000 seconds)
    1. (4 bytes) Length of metadata (including these 4 bytes)
    1. (see above) List of metadata; see "Metadata"
    1. (see above) Stream data
 1. If stream type is "wb" (then this is an audio stream):
    1. (2 bytes) Length of audio channel data
    1. (2 bytes) Length of everything until the end of the first channel
-   1. (4 bytes) Timestamp (included in that second length) (appears to be in 1/1000000 seconds)
-   1. (4 bytes) ??? (always zero) (included in that second length)
+   1. (8 bytes) Timestamp (included in that second length) (in 1/1000000 seconds)
    1. (see above) Audio channel
    1. [old versions only] (see above) Audio channel (this always seemed to be an exact copy of the actual audio channel)
 

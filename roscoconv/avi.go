@@ -110,8 +110,8 @@ func MakeAVI(info *rosco.FileInfo, streamID string) (*riff.AVIFile, error) {
 	}
 	videoChunks = videoChunks[firstKeyframeIndex:]
 
-	var firstVideoTimestamp uint32
-	var lastVideoTimestamp uint32
+	var firstVideoTimestamp uint64
+	var lastVideoTimestamp uint64
 	for _, chunk := range videoChunks {
 		if firstVideoTimestamp == 0 || chunk.Video.Timestamp < firstVideoTimestamp {
 			firstVideoTimestamp = chunk.Video.Timestamp
