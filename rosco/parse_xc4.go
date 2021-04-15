@@ -1,13 +1,16 @@
 package rosco
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"image/jpeg"
 	"io"
 	"strings"
 
 	"github.com/hashicorp/go-version"
+	"github.com/tekkamanendless/rosco-dashcam-processor/hexline"
 )
 
 // HeaderSize is the size of the file header.
@@ -25,7 +28,7 @@ const (
 )
 
 // ParseReaderXC4 parses a DVXC4 NVR file using an `io.Reader` instance.
-func ParseReaderXC4(reader io.Reader, headerOnly bool) (*FileInfo, error) {
+func ParseReaderXC4(reader *bufio.Reader, headerOnly bool) (*FileInfo, error) {
 	buffer := make([]byte, HeaderSize)
 	_, err := io.ReadFull(reader, buffer)
 	if err != nil {
@@ -71,30 +74,29 @@ func ParseReaderXC4(reader io.Reader, headerOnly bool) (*FileInfo, error) {
 	logger.Infof("File version: %v", fileVersion)
 
 	for i := 0; ; i++ {
-		buffer = make([]byte, 2)
-		_, err = io.ReadFull(reader, buffer)
+		buffer, err = reader.Peek(4)
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("Could not read the stream ID for chunk %d: %v", i, err)
+			return nil, fmt.Errorf("Could not peek the chunk info for chunk %d: %v", i, err)
 		}
 
 		chunk := &Chunk{
-			ID: string(buffer),
+			ID:   string(buffer[0:2]),
+			Type: string(buffer[2:4]),
 		}
-
-		buffer = make([]byte, 2)
-		_, err = io.ReadFull(reader, buffer)
-		if err != nil {
-			return nil, fmt.Errorf("Could not read the stream type for chunk %d: %v", i, err)
-		}
-		chunk.Type = string(buffer)
-
-		logger.Debugf("Chunk: %s / %s [%x]", chunk.ID, chunk.Type, []byte(chunk.ID+chunk.Type))
+		logger.Debugf("Chunk[%d]: %s / %s [%x]", i, chunk.ID, chunk.Type, []byte(chunk.ID+chunk.Type))
 
 		switch chunk.Type {
 		case "dc":
+			// We already peeked at these, so read them for real.
+			buffer = make([]byte, 4)
+			_, err = io.ReadFull(reader, buffer)
+			if err != nil {
+				return nil, fmt.Errorf("Could not actually read the first 4 bytes of chunk %d: %v", i, err)
+			}
+
 			chunk.Video = new(VideoChunk)
 
 			buffer = make([]byte, 4)
@@ -170,6 +172,13 @@ func ParseReaderXC4(reader io.Reader, headerOnly bool) (*FileInfo, error) {
 			}
 			chunk.Video.Media = buffer[0:originalMediaLength]
 		case "wb":
+			// We already peeked at these, so read them for real.
+			buffer = make([]byte, 4)
+			_, err = io.ReadFull(reader, buffer)
+			if err != nil {
+				return nil, fmt.Errorf("Could not actually read the first 4 bytes of chunk %d: %v", i, err)
+			}
+
 			chunk.Audio = new(AudioChunk)
 
 			var audioChannelLength int16
@@ -209,7 +218,27 @@ func ParseReaderXC4(reader io.Reader, headerOnly bool) (*FileInfo, error) {
 				}
 				chunk.Audio.ExtraMedia = buffer
 			}
+		case "\xff\xe0":
+			image, err := jpeg.Decode(reader)
+			if err != nil {
+				return nil, fmt.Errorf("Could not read the image: %v", err)
+			}
+			logger.Infof("Image bounds: %v", image.Bounds())
 		default:
+			// Attempt to read more data to provide context.
+			{
+				buffer := make([]byte, 1000)
+				readBytes, _ := io.ReadFull(reader, buffer)
+				if readBytes > 0 {
+					out := &bytes.Buffer{}
+					hexline.Write(out, bytes.NewReader(buffer), int64(readBytes), 80)
+
+					logger.Debugf("Next %d bytes:", readBytes)
+					for _, line := range strings.Split(out.String(), "\n") {
+						logger.Debugf("%s", line)
+					}
+				}
+			}
 			return nil, fmt.Errorf("Unknown chunk type for chunk %d: %v", i, chunk.Type)
 		}
 
