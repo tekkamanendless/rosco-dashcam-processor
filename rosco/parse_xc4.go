@@ -235,7 +235,7 @@ func ParseReaderXC4(reader *bufio.Reader, headerOnly bool) (*FileInfo, error) {
 		default:
 			// Attempt to read more data to provide context.
 			{
-				buffer := make([]byte, 1000)
+				buffer := make([]byte, 4000)
 				readBytes, _ := io.ReadFull(reader, buffer)
 				if readBytes > 0 {
 					out := &bytes.Buffer{}
