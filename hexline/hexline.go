@@ -25,6 +25,7 @@ func Write(out io.Writer, contents io.ReadSeeker, byteLimit int64, width int) er
 		for line := 0; line < 2; line++ {
 			contents.Seek(start, 0)
 			buffer := make([]byte, bufferSize)
+			totalBytesRead = start
 
 			out.Write([]byte(fmt.Sprintf("0x%06x: ", start)))
 
@@ -53,9 +54,7 @@ func Write(out io.Writer, contents io.ReadSeeker, byteLimit int64, width int) er
 					}
 
 					lineBytesRead++
-					if line == 0 {
-						totalBytesRead++
-					}
+					totalBytesRead++
 					if width > 0 && lineBytesRead >= width {
 						done = true
 						break

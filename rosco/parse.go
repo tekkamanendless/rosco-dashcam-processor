@@ -12,7 +12,7 @@ func ParseReader(reader io.ReadSeeker, headerOnly bool) (*FileInfo, error) {
 
 	buffer, err := bufferedReader.Peek(4)
 	if err != nil {
-		return nil, fmt.Errorf("Could not read the first 4 bytes: %v", err)
+		return nil, fmt.Errorf("could not read the first 4 bytes: %v", err)
 	}
 
 	if string(buffer) == "SAYS" {
