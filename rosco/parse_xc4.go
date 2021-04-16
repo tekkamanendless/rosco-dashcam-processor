@@ -221,21 +221,42 @@ func ParseReaderXC4(reader *bufio.Reader, headerOnly bool) (*FileInfo, error) {
 				chunk.Audio.ExtraMedia = buffer
 			}
 		case "\xff\xe0":
-			img, err := jpeg.Decode(reader)
+			jpegBuffer, err := ScanJPEG(reader)
+			if err != nil {
+				return nil, fmt.Errorf("could not scan the image: %v", err)
+			}
+			img, err := jpeg.Decode(bytes.NewReader(jpegBuffer))
 			if err != nil {
 				return nil, fmt.Errorf("could not read the image: %v", err)
 			}
 			logger.Infof("Image bounds: %v", img.Bounds())
-			f, err := os.Create(fmt.Sprintf("/tmp/image-%04d.png", i))
-			if err != nil {
-				logger.Warnf("Could not create image: %v", err)
-			} else {
-				png.Encode(f, img)
+			if false { // TODO: WHAT TO DO ABOUT THE IMAGE(S)?
+				f, err := os.Create(fmt.Sprintf("/tmp/image-%04d.png", i))
+				if err != nil {
+					logger.Warnf("Could not create image: %v", err)
+				} else {
+					png.Encode(f, img)
+				}
+			}
+
+			for {
+				peekBytes, err := reader.Peek(1)
+				if err != nil {
+					break
+				}
+				if len(peekBytes) == 0 {
+					break
+				}
+				if peekBytes[0] != 0 {
+					break
+				}
+				zeroBuffer := make([]byte, 1)
+				reader.Read(zeroBuffer)
 			}
 		default:
 			// Attempt to read more data to provide context.
 			{
-				buffer := make([]byte, 4000)
+				buffer := make([]byte, 2000)
 				readBytes, _ := io.ReadFull(reader, buffer)
 				if readBytes > 0 {
 					out := &bytes.Buffer{}
