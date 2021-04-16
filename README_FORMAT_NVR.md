@@ -16,10 +16,20 @@ The file header contains the filename, which itself contains some time informati
 1. (see above) List of metadata; see "Metadata"
 
 ## Stream data
-Streams can be either audio or video streams.
+Streams can be:
 
-Audio streams are encoded as 8-bit (Mu-law) audio, one channel at a time.
+1. Audio
+2. Video
+3. Image (JPEG)
 
+### Audio
+Audio streams can be raw PCM data or Opus-encoded data.
+
+If the stream ID ends in `7`, then it is raw PCM data encoded as 8-bit (Mu-law) audio, one channel at a time.
+
+If the stream ID ends in `9`, then it is Opus-encoded.
+
+### Video
 Video streams are encoded as h.264 packets.
 
 1. (2 bytes) Stream identifier (two ASCII digits)
@@ -41,6 +51,10 @@ Video streams are encoded as h.264 packets.
    1. (8 bytes) Timestamp (included in that second length) (in 1/1000000 seconds)
    1. (see above) Audio channel
    1. [old versions only] (see above) Audio channel (this always seemed to be an exact copy of the actual audio channel)
+
+### Image
+Image streams are just raw JPEGs, which begin with `0xffd8` (the JPEG "start of image" marker).
+There is no concept of stream ID for these, and there is no metadata.
 
 ## Metadata
 Metadata is used to store arbitrary data.

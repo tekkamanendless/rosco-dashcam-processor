@@ -7,12 +7,12 @@ import (
 )
 
 // ParseReader parses a file using an `io.Reader` instance.
-func ParseReader(reader io.Reader, headerOnly bool) (*FileInfo, error) {
+func ParseReader(reader io.ReadSeeker, headerOnly bool) (*FileInfo, error) {
 	bufferedReader := bufio.NewReader(reader)
 
 	buffer, err := bufferedReader.Peek(4)
 	if err != nil {
-		return nil, fmt.Errorf("Could not read the first 4 bytes: %v", err)
+		return nil, fmt.Errorf("could not read the first 4 bytes: %v", err)
 	}
 
 	if string(buffer) == "SAYS" {

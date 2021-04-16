@@ -92,7 +92,7 @@ func ParseReaderXC(reader *bufio.Reader, headerOnly bool) (*FileInfo, error) {
 		Filename: "",
 		Metadata: &Metadata{
 			Entries: []MetadataEntry{
-				MetadataEntry{
+				{
 					Type:  MetadataTypeInt64,
 					Name:  "_audioBitDepth",
 					Value: int64(16),
@@ -107,7 +107,7 @@ func ParseReaderXC(reader *bufio.Reader, headerOnly bool) (*FileInfo, error) {
 		return nil, err
 	}
 	if packetType != XCHeaderPacketType {
-		return nil, fmt.Errorf("Could not find the header packet")
+		return nil, fmt.Errorf("could not find the header packet")
 	}
 
 	headerPacket, err := parseXCHeaderPacket(reader)
@@ -138,32 +138,32 @@ func ParseReaderXC(reader *bufio.Reader, headerOnly bool) (*FileInfo, error) {
 		}
 		switch packetType {
 		case XCHeaderPacketType:
-			return nil, fmt.Errorf("Unexpected second file header")
+			return nil, fmt.Errorf("unexpected second file header")
 		case XCUnknown00PacketType:
 			packet, err := parseXCUnknown00Packet(reader)
 			if err != nil {
-				return nil, fmt.Errorf("Could not parse XCUnknown00Packet: %v", err)
+				return nil, fmt.Errorf("could not parse XCUnknown00Packet: %v", err)
 			}
 			//spew.Dump(packet)
 			logrus.Debugf("Unknown00 packet: %v, %v", packet.SequenceNumber, packet.Timestamp)
 		case XCUnknown01PacketType:
 			packet, err := parseXCUnknown01Packet(reader)
 			if err != nil {
-				return nil, fmt.Errorf("Could not parse XCUnknown01Packet: %v", err)
+				return nil, fmt.Errorf("could not parse XCUnknown01Packet: %v", err)
 			}
 			//spew.Dump(packet)
 			logrus.Debugf("Unknown01 packet: %v", packet.SequenceNumber)
 		case XCGPSPacketType:
 			packet, err := parseXCGPSPacket(reader)
 			if err != nil {
-				return nil, fmt.Errorf("Could not parse XCGPSPacket: %v", err)
+				return nil, fmt.Errorf("could not parse XCGPSPacket: %v", err)
 			}
 			//spew.Dump(packet)
 			logrus.Debugf("GPS packet: (%f %c, %f %c) -> %d mph @ %v / %04d-%02d-%02d %02d:%02d:%02d", packet.Latitude, packet.LatitudeDirection, packet.Longitude, packet.LongitudeDirection, packet.Speed, packet.Timestamp, packet.Year, packet.Month, packet.Day, packet.Hour, packet.Minute, packet.Second)
 		case XCAudioPacketType:
 			packet, err := parseXCAudioPacket(reader)
 			if err != nil {
-				return nil, fmt.Errorf("Could not parse XCAudioPacket: %v", err)
+				return nil, fmt.Errorf("could not parse XCAudioPacket: %v", err)
 			}
 			//spew.Dump(packet)
 			logrus.Debugf("Audio packet: %d bytes (%v)", packet.PayloadSize, packet.Timestamp)
@@ -181,7 +181,7 @@ func ParseReaderXC(reader *bufio.Reader, headerOnly bool) (*FileInfo, error) {
 		case XCVideoPacketType:
 			packet, err := parseXCVideoPacket(reader)
 			if err != nil {
-				return nil, fmt.Errorf("Could not parse XCVideoPacket: %v", err)
+				return nil, fmt.Errorf("could not parse XCVideoPacket: %v", err)
 			}
 			//spew.Dump(packet)
 			logrus.Debugf("Video packet: %d / %d: %d bytes (%v)", packet.StreamNumber, packet.StreamType, packet.PayloadSize, packet.Timestamp)
@@ -199,13 +199,13 @@ func ParseReaderXC(reader *bufio.Reader, headerOnly bool) (*FileInfo, error) {
 		case XCEndPacketType:
 			packet, err := parseXCEndPacket(reader)
 			if err != nil {
-				return nil, fmt.Errorf("Could not parse XCEndPacket: %v", err)
+				return nil, fmt.Errorf("could not parse XCEndPacket: %v", err)
 			}
 			//spew.Dump(packet)
 			logrus.Debugf("End packet: %d", packet.Number)
 			done = true
 		default:
-			return nil, fmt.Errorf("Unknown packet type: %x", packetType)
+			return nil, fmt.Errorf("unknown packet type: %x", packetType)
 		}
 	}
 
@@ -240,13 +240,13 @@ func parseXCTimestamp(reader *bufio.Reader) (time.Time, error) {
 	var timeSeconds uint32
 	err := binary.Read(reader, binary.LittleEndian, &timeSeconds)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("Could not parse timestamp seconds: %v", err)
+		return time.Time{}, fmt.Errorf("could not parse timestamp seconds: %v", err)
 	}
 
 	var timeMicroseconds uint32
 	err = binary.Read(reader, binary.LittleEndian, &timeMicroseconds)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("Could not parse timestamp microseconds: %v", err)
+		return time.Time{}, fmt.Errorf("could not parse timestamp microseconds: %v", err)
 	}
 
 	return time.Unix(int64(timeSeconds), int64(timeMicroseconds)*1000), nil
@@ -301,7 +301,7 @@ func parseXCUnknown00Packet(reader *bufio.Reader) (*XCUnknown00Packet, error) {
 	buffer := make([]byte, packetSize)
 	_, err := io.ReadFull(reader, buffer)
 	if err != nil {
-		return nil, fmt.Errorf("Could not read packet contents: %v", err)
+		return nil, fmt.Errorf("could not read packet contents: %v", err)
 	}
 
 	bufferReader := bufio.NewReader(bytes.NewReader(buffer))
@@ -312,7 +312,7 @@ func parseXCUnknown00Packet(reader *bufio.Reader) (*XCUnknown00Packet, error) {
 		return nil, err
 	}
 	if firstByte != 0xff {
-		return nil, fmt.Errorf("Incorrect first byte: %x", firstByte)
+		return nil, fmt.Errorf("incorrect first byte: %x", firstByte)
 	}
 
 	err = binary.Read(bufferReader, binary.LittleEndian, &packet.SequenceNumber)
@@ -323,7 +323,7 @@ func parseXCUnknown00Packet(reader *bufio.Reader) (*XCUnknown00Packet, error) {
 	packet.Unknown1 = make([]byte, 8)
 	_, err = io.ReadFull(bufferReader, packet.Unknown1)
 	if err != nil {
-		return nil, fmt.Errorf("Could not read unknown1 content: %v", err)
+		return nil, fmt.Errorf("could not read unknown1 content: %v", err)
 	}
 	for _, line := range strings.Split(spew.Sdump(packet.Unknown1), "\n") {
 		logrus.Debugf("Unknown00Packet.Unknown1: %s", line)
@@ -331,7 +331,7 @@ func parseXCUnknown00Packet(reader *bufio.Reader) (*XCUnknown00Packet, error) {
 
 	packet.Timestamp, err = parseXCTimestamp(bufferReader)
 	if err != nil {
-		return nil, fmt.Errorf("Could not parse timestamp: %v", err)
+		return nil, fmt.Errorf("could not parse timestamp: %v", err)
 	}
 
 	remainder, err := ioutil.ReadAll(bufferReader)
@@ -339,7 +339,7 @@ func parseXCUnknown00Packet(reader *bufio.Reader) (*XCUnknown00Packet, error) {
 		return nil, err
 	}
 	if len(remainder) > 0 {
-		return nil, fmt.Errorf("Too many extra bytes: %d", len(remainder))
+		return nil, fmt.Errorf("too many extra bytes: %d", len(remainder))
 	}
 
 	return packet, nil
@@ -352,7 +352,7 @@ func parseXCUnknown01Packet(reader *bufio.Reader) (*XCUnknown01Packet, error) {
 	buffer := make([]byte, packetSize)
 	_, err := io.ReadFull(reader, buffer)
 	if err != nil {
-		return nil, fmt.Errorf("Could not read packet contents: %v", err)
+		return nil, fmt.Errorf("could not read packet contents: %v", err)
 	}
 
 	bufferReader := bufio.NewReader(bytes.NewReader(buffer))
@@ -363,7 +363,7 @@ func parseXCUnknown01Packet(reader *bufio.Reader) (*XCUnknown01Packet, error) {
 		return nil, err
 	}
 	if firstByte != 0xff {
-		return nil, fmt.Errorf("Incorrect first byte: %x", firstByte)
+		return nil, fmt.Errorf("incorrect first byte: %x", firstByte)
 	}
 
 	err = binary.Read(bufferReader, binary.LittleEndian, &packet.SequenceNumber)
@@ -381,7 +381,7 @@ func parseXCGPSPacket(reader *bufio.Reader) (*XCGPSPacket, error) {
 	buffer := make([]byte, packetSize)
 	_, err := io.ReadFull(reader, buffer)
 	if err != nil {
-		return nil, fmt.Errorf("Could not read packet contents: %v", err)
+		return nil, fmt.Errorf("could not read packet contents: %v", err)
 	}
 	//for _, line := range strings.Split(spew.Sdump(buffer), "\n") {
 	//	logrus.Debugf("GPSPacket.Total: %s", line)
@@ -395,7 +395,7 @@ func parseXCGPSPacket(reader *bufio.Reader) (*XCGPSPacket, error) {
 		return nil, err
 	}
 	if firstByte != 0xff {
-		return nil, fmt.Errorf("Incorrect first byte: %x", firstByte)
+		return nil, fmt.Errorf("incorrect first byte: %x", firstByte)
 	}
 
 	err = binary.Read(bufferReader, binary.LittleEndian, &packet.SequenceNumber)
@@ -545,7 +545,7 @@ func parseXCAudioPacket(reader *bufio.Reader) (*XCAudioPacket, error) {
 	buffer := make([]byte, packetSize)
 	_, err := io.ReadFull(reader, buffer)
 	if err != nil {
-		return nil, fmt.Errorf("Could not read packet contents: %v", err)
+		return nil, fmt.Errorf("could not read packet contents: %v", err)
 	}
 
 	bufferReader := bufio.NewReader(bytes.NewReader(buffer))
@@ -556,7 +556,7 @@ func parseXCAudioPacket(reader *bufio.Reader) (*XCAudioPacket, error) {
 		return nil, err
 	}
 	if firstByte != 0xff {
-		return nil, fmt.Errorf("Incorrect first byte: %x", firstByte)
+		return nil, fmt.Errorf("incorrect first byte: %x", firstByte)
 	}
 
 	err = binary.Read(bufferReader, binary.LittleEndian, &packet.SequenceNumber)
@@ -579,7 +579,7 @@ func parseXCAudioPacket(reader *bufio.Reader) (*XCAudioPacket, error) {
 		return nil, err
 	}
 	if len(remainder) > 0 {
-		return nil, fmt.Errorf("Too many extra bytes: %d", len(remainder))
+		return nil, fmt.Errorf("too many extra bytes: %d", len(remainder))
 	}
 
 	buffer = make([]byte, packet.PayloadSize)
@@ -600,7 +600,7 @@ func parseXCVideoPacket(reader *bufio.Reader) (*XCVideoPacket, error) {
 	buffer := make([]byte, packetSize)
 	_, err := io.ReadFull(reader, buffer)
 	if err != nil {
-		return nil, fmt.Errorf("Could not read packet contents: %v", err)
+		return nil, fmt.Errorf("could not read packet contents: %v", err)
 	}
 
 	bufferReader := bufio.NewReader(bytes.NewReader(buffer))
@@ -648,7 +648,7 @@ func parseXCVideoPacket(reader *bufio.Reader) (*XCVideoPacket, error) {
 		return nil, err
 	}
 	if len(remainder) > 0 {
-		return nil, fmt.Errorf("Too many extra bytes: %d", len(remainder))
+		return nil, fmt.Errorf("too many extra bytes: %d", len(remainder))
 	}
 
 	buffer = make([]byte, packet.PayloadSize)
@@ -669,7 +669,7 @@ func parseXCEndPacket(reader *bufio.Reader) (*XCEndPacket, error) {
 	buffer := make([]byte, packetSize)
 	_, err := io.ReadFull(reader, buffer)
 	if err != nil {
-		return nil, fmt.Errorf("Could not read packet contents: %v", err)
+		return nil, fmt.Errorf("could not read packet contents: %v", err)
 	}
 
 	bufferReader := bufio.NewReader(bytes.NewReader(buffer))
@@ -680,7 +680,7 @@ func parseXCEndPacket(reader *bufio.Reader) (*XCEndPacket, error) {
 		return nil, err
 	}
 	if firstByte != 0xff {
-		return nil, fmt.Errorf("Incorrect first byte: %x", firstByte)
+		return nil, fmt.Errorf("incorrect first byte: %x", firstByte)
 	}
 
 	err = binary.Read(bufferReader, binary.LittleEndian, &packet.Number)
