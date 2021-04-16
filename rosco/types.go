@@ -1,5 +1,7 @@
 package rosco
 
+import "image"
+
 // FileInfo contains all of the information from an NVR file.
 type FileInfo struct {
 	Filename string
@@ -35,6 +37,7 @@ type Chunk struct {
 	Type  string
 	Audio *AudioChunk
 	Video *VideoChunk
+	Image image.Image
 }
 
 // AudioChunk is an audio chunk.

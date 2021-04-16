@@ -519,6 +519,7 @@ func printFileInfo(info *rosco.FileInfo) {
 		chunks := info.ChunksForStreamID(streamID)
 		audioDataLength := 0
 		videoDataLength := 0
+		images := 0
 		for _, chunk := range chunks {
 			if chunk.Audio != nil {
 				audioDataLength += len(chunk.Audio.Media)
@@ -526,9 +527,13 @@ func printFileInfo(info *rosco.FileInfo) {
 			if chunk.Video != nil {
 				videoDataLength += len(chunk.Video.Media)
 			}
+			if chunk.Image != nil {
+				images++
+			}
 		}
 		fmt.Printf("   Chunks: %d\n", len(chunks))
 		fmt.Printf("   Audio: %d bytes\n", audioDataLength)
 		fmt.Printf("   Video: %d bytes\n", videoDataLength)
+		fmt.Printf("   Images: %d\n", images)
 	}
 }

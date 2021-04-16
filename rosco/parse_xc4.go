@@ -6,9 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"image/jpeg"
-	"image/png"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/hashicorp/go-version"
@@ -87,6 +85,12 @@ func ParseReaderXC4(reader *bufio.Reader, headerOnly bool) (*FileInfo, error) {
 		chunk := &Chunk{
 			ID:   string(buffer[0:2]),
 			Type: string(buffer[2:4]),
+		}
+		// If this is a JFIF chunk, then create some meaningful labels.
+		// Since Rosco just dumps a raw JFIF in there, the first few bytes are binary and not at all descriptive.
+		if chunk.ID == "\xff\xd8" {
+			chunk.ID = "images"
+			chunk.Type = "jfif"
 		}
 		logger.Debugf("Chunk[%d]: %s / %s [%x]", i, chunk.ID, chunk.Type, []byte(chunk.ID+chunk.Type))
 
@@ -220,25 +224,21 @@ func ParseReaderXC4(reader *bufio.Reader, headerOnly bool) (*FileInfo, error) {
 				}
 				chunk.Audio.ExtraMedia = buffer
 			}
-		case "\xff\xe0":
+		case "jfif":
+			// Read the JPEG data from the stream.
 			jpegBuffer, err := ScanJPEG(reader)
 			if err != nil {
 				return nil, fmt.Errorf("could not scan the image: %v", err)
 			}
+			// Parse the image.
 			img, err := jpeg.Decode(bytes.NewReader(jpegBuffer))
 			if err != nil {
 				return nil, fmt.Errorf("could not read the image: %v", err)
 			}
 			logger.Infof("Image bounds: %v", img.Bounds())
-			if false { // TODO: WHAT TO DO ABOUT THE IMAGE(S)?
-				f, err := os.Create(fmt.Sprintf("/tmp/image-%04d.png", i))
-				if err != nil {
-					logger.Warnf("Could not create image: %v", err)
-				} else {
-					png.Encode(f, img)
-				}
-			}
+			chunk.Image = img
 
+			// Read through any zero bytes.
 			for {
 				peekBytes, err := reader.Peek(1)
 				if err != nil {
