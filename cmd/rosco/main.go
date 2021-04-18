@@ -386,6 +386,9 @@ With this, you can quickly export all of the videos from a particular directory 
 								if len(streamID) < 1 {
 									continue
 								}
+								if streamID == "images" {
+									continue
+								}
 								logicalStreamMap[string(streamID[0])] = true
 							}
 							for id := range logicalStreamMap {
